@@ -1,5 +1,6 @@
 package com.spite.backend.controller;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
@@ -37,15 +38,36 @@ public class ExerciseController {
         repo.deleteById(id);
     }
 
-    @PostMapping("/upload")
-    public String uploadVideo(@RequestParam("video") MultipartFile file) {
-        try {
-            String videoUrl = cloudinaryService.uploadVideo(file);
-            System.out.println("✅ Uploadovano na Cloudinary: " + videoUrl);
-            return videoUrl; // frontend dobija cloud URL
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException("❌ Greška pri uploadu videa: " + e.getMessage());
+@PostMapping(
+    value = "/upload",
+    consumes = { "multipart/form-data", "video/*", "*/*" }
+)
+public ResponseEntity<String> uploadVideo(@RequestParam("video") MultipartFile file) {
+    try {
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body("No file received by the server.");
         }
+
+        String contentType = file.getContentType();
+        System.out.println("📥 File primljen: " + file.getOriginalFilename() + " | MIME: " + contentType);
+
+        // ✅ Dozvoli i mp4 i mov fajlove
+        if (contentType == null ||
+            !(contentType.equalsIgnoreCase("video/mp4") ||
+              contentType.equalsIgnoreCase("video/quicktime") ||   // iPhone .MOV format
+              contentType.startsWith("video"))) {
+
+            return ResponseEntity.badRequest().body("Unsupported file type: " + contentType);
+        }
+
+        String videoUrl = cloudinaryService.uploadVideo(file);
+        System.out.println("✅ Uploadovano na Cloudinary: " + videoUrl);
+        return ResponseEntity.ok(videoUrl);
+
+    } catch (IOException e) {
+        e.printStackTrace();
+        return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
     }
+}
+
 }

@@ -32,6 +32,6 @@ public class CloudinaryService {
             ObjectUtils.asMap("resource_type", "video")
         );
 
-        return uploadResult.get("secure_url").toString(); // <- cloud link
+        return uploadResult.get("secure_url").toString();
     }
 }
