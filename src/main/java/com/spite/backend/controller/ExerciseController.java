@@ -51,23 +51,29 @@ public ResponseEntity<String> uploadVideo(@RequestParam("video") MultipartFile f
         String contentType = file.getContentType();
         System.out.println("📥 File primljen: " + file.getOriginalFilename() + " | MIME: " + contentType);
 
-        // ✅ Dozvoli i mp4 i mov fajlove
+        // ✅ Dozvoli mp4, mov i video/*
         if (contentType == null ||
             !(contentType.equalsIgnoreCase("video/mp4") ||
-              contentType.equalsIgnoreCase("video/quicktime") ||   // iPhone .MOV format
+              contentType.equalsIgnoreCase("video/quicktime") ||
               contentType.startsWith("video"))) {
-
             return ResponseEntity.badRequest().body("Unsupported file type: " + contentType);
         }
 
         String videoUrl = cloudinaryService.uploadVideo(file);
         System.out.println("✅ Uploadovano na Cloudinary: " + videoUrl);
-        return ResponseEntity.ok(videoUrl);
+
+        return ResponseEntity
+                .ok()
+                .header("Access-Control-Allow-Origin", "*")
+                .header("Access-Control-Allow-Methods", "POST, OPTIONS")
+                .header("Access-Control-Allow-Headers", "Content-Type")
+                .body(videoUrl);
 
     } catch (IOException e) {
         e.printStackTrace();
         return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
     }
 }
+
 
 }
