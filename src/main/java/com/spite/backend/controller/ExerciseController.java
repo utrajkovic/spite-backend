@@ -3,6 +3,7 @@ package com.spite.backend.controller;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -23,9 +24,24 @@ public class ExerciseController {
         this.cloudinaryService = cloudinaryService;
     }
 
+    @PostMapping("/upload")
+    public ResponseEntity<String> uploadVideo(@RequestParam("video") MultipartFile file) {
+        try {
+            String videoUrl = cloudinaryService.uploadVideo(file);
+            return ResponseEntity.ok(videoUrl);
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
+        }
+    }
+
     @GetMapping
     public List<Exercise> getAll() {
         return repo.findAll();
+    }
+
+    @GetMapping("/user/{userId}")
+    public List<Exercise> getByUser(@PathVariable String userId) {
+        return repo.findByUserId(userId);
     }
 
     @PostMapping
@@ -34,38 +50,18 @@ public class ExerciseController {
     }
 
     @DeleteMapping("/{id}")
-    public void delete(@PathVariable String id) {
-        repo.deleteById(id);
-    }
-
-    @PostMapping(
-        value = "/upload",
-        consumes = { "multipart/form-data", "video/*", "*/*" }
-    )
-    public ResponseEntity<String> uploadVideo(@RequestParam("video") MultipartFile file) {
-        try {
-            if (file == null || file.isEmpty()) {
-                return ResponseEntity.badRequest().body("No file received by the server.");
+    public ResponseEntity<String> deleteExercise(@PathVariable String id) {
+        return repo.findById(id).map(exercise -> {
+            if (exercise.getVideoUrl() != null && !exercise.getVideoUrl().isEmpty()) {
+                boolean deleted = cloudinaryService.deleteVideo(exercise.getVideoUrl());
+                System.out.println(deleted
+                        ? "☁️ Cloudinary video deleted: " + exercise.getVideoUrl()
+                        : "⚠️ Failed to delete video from Cloudinary");
             }
 
-            String contentType = file.getContentType();
-            System.out.println("📥 File primljen: " + file.getOriginalFilename() + " | MIME: " + contentType);
-
-            if (contentType == null ||
-                !(contentType.equalsIgnoreCase("video/mp4") ||
-                  contentType.equalsIgnoreCase("video/quicktime") ||
-                  contentType.startsWith("video"))) {
-                return ResponseEntity.badRequest().body("Unsupported file type: " + contentType);
-            }
-
-            String videoUrl = cloudinaryService.uploadVideo(file);
-            System.out.println("✅ Uploadovano na Cloudinary: " + videoUrl);
-
-            return ResponseEntity.ok().body(videoUrl);
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
-        }
+            repo.deleteById(id);
+            return ResponseEntity.ok("Exercise and video deleted.");
+        }).orElse(ResponseEntity.notFound().build());
     }
+
 }

@@ -13,11 +13,13 @@ public class Workout {
     private String title;
     private String subtitle;
     private String content;
+    private String userId; // kome trening pripada
     private List<String> exerciseIds;
     @Transient
     private List<Exercise> exercises;
 
-    public Workout() {}
+    public Workout() {
+    }
 
     public Workout(String id, String title, String subtitle, String content, List<String> exerciseIds) {
         this.id = id;
@@ -27,24 +29,58 @@ public class Workout {
         this.exerciseIds = exerciseIds;
     }
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public String getSubtitle() { return subtitle; }
-    public void setSubtitle(String subtitle) { this.subtitle = subtitle; }
+    public String getTitle() {
+        return title;
+    }
 
-    public String getContent() { return content; }
-    public void setContent(String content) { this.content = content; }
+    public void setTitle(String title) {
+        this.title = title;
+    }
 
-    public List<String> getExerciseIds() { return exerciseIds; }
-    public void setExerciseIds(List<String> exerciseIds) { this.exerciseIds = exerciseIds; }
+    public String getSubtitle() {
+        return subtitle;
+    }
+
+    public void setSubtitle(String subtitle) {
+        this.subtitle = subtitle;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    public List<String> getExerciseIds() {
+        return exerciseIds;
+    }
+
+    public void setExerciseIds(List<String> exerciseIds) {
+        this.exerciseIds = exerciseIds;
+    }
 
     public List<Exercise> getExercises() {
         return exercises;
     }
+
     public void setExercises(List<Exercise> exercises) {
         this.exercises = exercises;
     }

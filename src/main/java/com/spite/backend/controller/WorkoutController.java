@@ -22,10 +22,15 @@ public class WorkoutController {
     }
 
     @GetMapping
-    public List<Workout> getAll() {
-        List<Workout> workouts = workoutRepo.findAll();
+    public List<Workout> getAll(@RequestParam(required = false) String userId) {
+        List<Workout> workouts;
 
-        // 🔹 Učitaj sve vežbe za svaki trening
+        if (userId != null && !userId.isEmpty()) {
+            workouts = workoutRepo.findByUserId(userId);
+        } else {
+            workouts = workoutRepo.findAll();
+        }
+
         for (Workout w : workouts) {
             List<Exercise> exList = exerciseRepo.findAllById(w.getExerciseIds());
             w.setExercises(exList);
@@ -53,4 +58,15 @@ public class WorkoutController {
     public void delete(@PathVariable String id) {
         workoutRepo.deleteById(id);
     }
+
+    @GetMapping("/user/{userId}")
+    public List<Workout> getByUser(@PathVariable String userId) {
+        List<Workout> workouts = workoutRepo.findByUserId(userId);
+        for (Workout w : workouts) {
+            List<Exercise> exList = exerciseRepo.findAllById(w.getExerciseIds());
+            w.setExercises(exList);
+        }
+        return workouts;
+    }
+
 }
