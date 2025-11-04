@@ -31,9 +31,14 @@ public class CloudinaryService {
                 ObjectUtils.asMap(
                         "resource_type", "video",
                         "transformation", new Transformation()
-                                .quality("auto:eco") 
+                                .quality("auto:eco")
                                 .fetchFormat("mp4")));
 
+        return uploadResult.get("secure_url").toString();
+    }
+
+    public String upload(MultipartFile file, Map<String, Object> options) throws IOException {
+        Map uploadResult = cloudinary.uploader().upload(file.getBytes(), options);
         return uploadResult.get("secure_url").toString();
     }
 
@@ -53,5 +58,4 @@ public class CloudinaryService {
             return false;
         }
     }
-
 }

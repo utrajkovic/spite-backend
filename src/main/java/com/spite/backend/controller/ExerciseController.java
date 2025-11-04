@@ -6,6 +6,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+
+import com.cloudinary.utils.ObjectUtils;
+import com.cloudinary.Transformation;
 
 import com.spite.backend.model.Exercise;
 import com.spite.backend.repository.ExerciseRepository;
@@ -27,10 +31,31 @@ public class ExerciseController {
     @PostMapping("/upload")
     public ResponseEntity<String> uploadVideo(@RequestParam("video") MultipartFile file) {
         try {
-            String videoUrl = cloudinaryService.uploadVideo(file);
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body("No video file uploaded.");
+            }
+
+            Map<String, Object> uploadOptions = ObjectUtils.asMap(
+                    "resource_type", "video",
+                    "format", "mp4",
+                    "transformation", new Transformation<>()
+                            .videoCodec("h264") 
+                            .bitRate("800k")
+                            .width(720) 
+                            .crop("limit")
+                            .duration("5") 
+            );
+
+            String videoUrl = cloudinaryService.upload(file, uploadOptions);
+
             return ResponseEntity.ok(videoUrl);
+
         } catch (IOException e) {
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Unexpected error: " + e.getMessage());
         }
     }
 
@@ -63,5 +88,4 @@ public class ExerciseController {
             return ResponseEntity.ok("Exercise and video deleted.");
         }).orElse(ResponseEntity.notFound().build());
     }
-
 }
