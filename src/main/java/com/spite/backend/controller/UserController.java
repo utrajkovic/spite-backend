@@ -1,5 +1,6 @@
 package com.spite.backend.controller;
 
+import com.spite.backend.model.Role;
 import com.spite.backend.model.User;
 import com.spite.backend.repository.UserRepository;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +23,7 @@ public class UserController {
         if (repo.existsByUsername(user.getUsername())) {
             return ResponseEntity.badRequest().body("Username already exists");
         }
+        user.setRole(Role.USER);
         User saved = repo.save(user);
         return ResponseEntity.ok(saved);
     }
@@ -31,8 +33,17 @@ public class UserController {
         Optional<User> existing = repo.findByUsername(user.getUsername());
 
         if (existing.isPresent() && existing.get().getPassword().equals(user.getPassword())) {
-            return ResponseEntity.ok(existing.get());
+            User logged = existing.get();
+
+            if (logged.getRole() == null) {
+                logged.setRole(Role.USER);
+                repo.save(logged);
+            }
+
+            return ResponseEntity.ok(logged);
         }
+
         return ResponseEntity.status(401).body("Invalid username or password");
     }
+
 }
