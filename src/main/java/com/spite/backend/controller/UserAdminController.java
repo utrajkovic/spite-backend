@@ -36,7 +36,6 @@ public class UserAdminController {
             @PathVariable String username,
             @RequestParam Role role) {
 
-        // 🔹 Samo admin može da menja role
         if (!guard.hasRole(adminUsername, Role.ADMIN)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Access denied: only admins can change roles.");
@@ -52,6 +51,48 @@ public class UserAdminController {
         repo.save(user);
 
         return ResponseEntity.ok("Role updated to " + role);
+    }
+
+    @PutMapping("/users/{username}/password")
+    public ResponseEntity<String> updatePassword(
+            @RequestParam String adminUsername,
+            @PathVariable String username,
+            @RequestParam String newPassword) {
+
+        if (!guard.hasRole(adminUsername, Role.ADMIN)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Access denied: only admins can change passwords.");
+        }
+
+        Optional<User> optUser = repo.findByUsername(username);
+        if (optUser.isEmpty()) {
+            return ResponseEntity.badRequest().body("User not found");
+        }
+
+        User user = optUser.get();
+        user.setPassword(newPassword); //hash ovde
+        repo.save(user);
+
+        return ResponseEntity.ok("Password updated successfully.");
+    }
+
+    @DeleteMapping("/users/{username}")
+    public ResponseEntity<String> deleteUser(
+            @RequestParam String adminUsername,
+            @PathVariable String username) {
+
+        if (!guard.hasRole(adminUsername, Role.ADMIN)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body("Access denied: only admins can delete users.");
+        }
+
+        Optional<User> optUser = repo.findByUsername(username);
+        if (optUser.isEmpty()) {
+            return ResponseEntity.badRequest().body("User not found");
+        }
+
+        repo.delete(optUser.get());
+        return ResponseEntity.ok("User deleted.");
     }
 
 }
