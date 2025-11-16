@@ -18,7 +18,7 @@ import com.spite.backend.service.RoleGuardService;
 public class UserAdminController {
 
     private final UserRepository repo;
-    private RoleGuardService guard;
+    private final RoleGuardService guard;
 
     public UserAdminController(UserRepository repo, RoleGuardService guard) {
         this.repo = repo;
@@ -30,7 +30,7 @@ public class UserAdminController {
         return repo.findAll();
     }
 
-    @PutMapping("/users/{username}/role")
+    @PutMapping("/{username}/role")
     public ResponseEntity<String> updateRole(
             @RequestParam String adminUsername,
             @PathVariable String username,
@@ -53,7 +53,7 @@ public class UserAdminController {
         return ResponseEntity.ok("Role updated to " + role);
     }
 
-    @PutMapping("/users/{username}/password")
+    @PutMapping("/{username}/password")
     public ResponseEntity<String> updatePassword(
             @RequestParam String adminUsername,
             @PathVariable String username,
@@ -70,13 +70,13 @@ public class UserAdminController {
         }
 
         User user = optUser.get();
-        user.setPassword(newPassword); //hash ovde
+        user.setPassword(newPassword); // TODO: hash password
         repo.save(user);
 
         return ResponseEntity.ok("Password updated successfully.");
     }
 
-    @DeleteMapping("/users/{username}")
+    @DeleteMapping("/{username}")
     public ResponseEntity<String> deleteUser(
             @RequestParam String adminUsername,
             @PathVariable String username) {
