@@ -135,36 +135,41 @@ public class WorkoutController {
 
         return ResponseEntity.ok(result);
     }
-    
+
     @PutMapping("/{id}")
     public ResponseEntity<?> updateWorkout(
             @PathVariable String id,
             @RequestBody Workout updated) {
 
-        return workoutRepo.findById(id)
-                .map(existing -> {
+        var opt = workoutRepo.findById(id);
 
-                    if (updated.getTitle() != null)
-                        existing.setTitle(updated.getTitle());
+        if (opt.isEmpty()) {
+            return ResponseEntity.badRequest().body("Workout not found");
+        }
 
-                    if (updated.getSubtitle() != null)
-                        existing.setSubtitle(updated.getSubtitle());
+        Workout existing = opt.get();
 
-                    if (updated.getContent() != null)
-                        existing.setContent(updated.getContent());
+        if (updated.getTitle() != null) {
+            existing.setTitle(updated.getTitle());
+        }
 
-                    if (updated.getExerciseIds() != null) {
-                        existing.setExerciseIds(updated.getExerciseIds());
-                    }
+        if (updated.getSubtitle() != null) {
+            existing.setSubtitle(updated.getSubtitle());
+        }
 
-                    workoutRepo.save(existing);
+        if (updated.getContent() != null) {
+            existing.setContent(updated.getContent());
+        }
 
-                    List<Exercise> exList = exerciseRepo.findAllById(existing.getExerciseIds());
-                    existing.setExercises(exList);
+        if (updated.getExerciseIds() != null) {
+            existing.setExerciseIds(updated.getExerciseIds());
+        }
 
-                    return ResponseEntity.ok(existing);
-                })
-                .orElse(ResponseEntity.badRequest().body("Workout not found"));
+        workoutRepo.save(existing);
+
+        List<Exercise> exList = exerciseRepo.findAllById(existing.getExerciseIds());
+        existing.setExercises(exList);
+
+        return ResponseEntity.ok(existing);
     }
-
 }
