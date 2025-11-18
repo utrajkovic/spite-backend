@@ -135,4 +135,36 @@ public class WorkoutController {
 
         return ResponseEntity.ok(result);
     }
+    
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateWorkout(
+            @PathVariable String id,
+            @RequestBody Workout updated) {
+
+        return workoutRepo.findById(id)
+                .map(existing -> {
+
+                    if (updated.getTitle() != null)
+                        existing.setTitle(updated.getTitle());
+
+                    if (updated.getSubtitle() != null)
+                        existing.setSubtitle(updated.getSubtitle());
+
+                    if (updated.getContent() != null)
+                        existing.setContent(updated.getContent());
+
+                    if (updated.getExerciseIds() != null) {
+                        existing.setExerciseIds(updated.getExerciseIds());
+                    }
+
+                    workoutRepo.save(existing);
+
+                    List<Exercise> exList = exerciseRepo.findAllById(existing.getExerciseIds());
+                    existing.setExercises(exList);
+
+                    return ResponseEntity.ok(existing);
+                })
+                .orElse(ResponseEntity.badRequest().body("Workout not found"));
+    }
+
 }
