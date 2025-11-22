@@ -46,4 +46,21 @@ public class UserController {
         return ResponseEntity.status(401).body("Invalid username or password");
     }
 
+    @GetMapping("/username/{username}")
+    public ResponseEntity<?> getUserByUsername(@PathVariable String username) {
+        Optional<User> user = repo.findByUsername(username);
+
+        if (user.isPresent()) {
+            return ResponseEntity.ok(user.get());
+        } else {
+            return ResponseEntity.status(404).body("User not found");
+        }
+    }
+
+    @GetMapping("/exists/{username}")
+    public ResponseEntity<?> checkUserExists(@PathVariable String username) {
+        boolean exists = repo.existsByUsername(username);
+        return ResponseEntity.ok(exists);
+    }
+
 }
