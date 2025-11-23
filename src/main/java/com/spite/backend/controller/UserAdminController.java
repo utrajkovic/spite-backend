@@ -146,16 +146,21 @@ public class UserAdminController {
         List<ClientWorkoutLink> cwlClient = clientWorkoutLinkRepo.findByClientUsername(username);
         clientWorkoutLinkRepo.deleteAll(cwlClient);
 
-        List<ClientWorkoutLink> cwlTrainer = clientWorkoutLinkRepo.findByClientUsername(username);
+        List<ClientWorkoutLink> cwlTrainer = clientWorkoutLinkRepo.findAll()
+                .stream()
+                .filter(link -> username.equals(link.getTrainerUsername()))
+                .toList();
         clientWorkoutLinkRepo.deleteAll(cwlTrainer);
 
         List<AssignedWorkout> assignedClient = assignedWorkoutRepo.findByClientUsername(username);
         assignedWorkoutRepo.deleteAll(assignedClient);
+
         List<AssignedWorkout> assignedByTrainer = assignedWorkoutRepo
                 .findAll().stream()
                 .filter(a -> username.equals(a.getAssignedBy()))
                 .toList();
         assignedWorkoutRepo.deleteAll(assignedByTrainer);
+
         repo.delete(user);
 
         return ResponseEntity.ok("User and all linked data were successfully deleted.");
