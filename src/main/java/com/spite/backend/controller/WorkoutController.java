@@ -2,7 +2,6 @@ package com.spite.backend.controller;
 
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
-import org.springframework.beans.factory.annotation.Autowired;
 import java.util.List;
 
 import com.spite.backend.model.Workout;
@@ -22,7 +21,6 @@ public class WorkoutController {
     private final ExerciseRepository exerciseRepo;
     private final AssignedWorkoutRepository assignedRepo;
 
-    @Autowired
     public WorkoutController(
             WorkoutRepository workoutRepo,
             ExerciseRepository exerciseRepo,

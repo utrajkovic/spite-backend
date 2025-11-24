@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import com.spite.backend.model.AssignedWorkout;
@@ -36,6 +37,7 @@ public class UserAdminController {
     private final TrainerClientRepository trainerClientRepo;
     private final ClientWorkoutLinkRepository clientWorkoutLinkRepo;
     private final AssignedWorkoutRepository assignedWorkoutRepo;
+    private final PasswordEncoder passwordEncoder;
 
     public UserAdminController(
             UserRepository repo,
@@ -45,7 +47,8 @@ public class UserAdminController {
             CloudinaryService cloudinaryService,
             TrainerClientRepository trainerClientRepo,
             ClientWorkoutLinkRepository clientWorkoutLinkRepo,
-            AssignedWorkoutRepository assignedWorkoutRepo) {
+            AssignedWorkoutRepository assignedWorkoutRepo,
+            PasswordEncoder passwordEncoder) {
         this.repo = repo;
         this.guard = guard;
         this.exerciseRepo = exerciseRepo;
@@ -54,6 +57,8 @@ public class UserAdminController {
         this.trainerClientRepo = trainerClientRepo;
         this.clientWorkoutLinkRepo = clientWorkoutLinkRepo;
         this.assignedWorkoutRepo = assignedWorkoutRepo;
+        this.passwordEncoder = passwordEncoder;
+
     }
 
     @GetMapping
@@ -101,7 +106,8 @@ public class UserAdminController {
         }
 
         User user = optUser.get();
-        user.setPassword(newPassword); // TODO: hash password
+        user.setPassword(passwordEncoder.encode(newPassword));
+
         repo.save(user);
 
         return ResponseEntity.ok("Password updated successfully.");

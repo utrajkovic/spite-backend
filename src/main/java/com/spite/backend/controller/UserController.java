@@ -5,6 +5,8 @@ import com.spite.backend.model.User;
 import com.spite.backend.repository.UserRepository;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
 import java.util.Optional;
 
 @RestController
@@ -13,9 +15,11 @@ import java.util.Optional;
 public class UserController {
 
     private final UserRepository repo;
+    private PasswordEncoder passwordEncoder;
 
-    public UserController(UserRepository repo) {
+    public UserController(UserRepository repo, PasswordEncoder passwordEncoder) {
         this.repo = repo;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @PostMapping("/register")
@@ -23,7 +27,12 @@ public class UserController {
         if (repo.existsByUsername(user.getUsername())) {
             return ResponseEntity.badRequest().body("Username already exists");
         }
+
         user.setRole(Role.USER);
+
+        String hashed = passwordEncoder.encode(user.getPassword());
+        user.setPassword(hashed);
+
         User saved = repo.save(user);
         return ResponseEntity.ok(saved);
     }
@@ -32,18 +41,22 @@ public class UserController {
     public ResponseEntity<?> login(@RequestBody User user) {
         Optional<User> existing = repo.findByUsername(user.getUsername());
 
-        if (existing.isPresent() && existing.get().getPassword().equals(user.getPassword())) {
-            User logged = existing.get();
-
-            if (logged.getRole() == null) {
-                logged.setRole(Role.USER);
-                repo.save(logged);
-            }
-
-            return ResponseEntity.ok(logged);
+        if (existing.isEmpty()) {
+            return ResponseEntity.status(401).body("Invalid username or password");
         }
 
-        return ResponseEntity.status(401).body("Invalid username or password");
+        User dbUser = existing.get();
+
+        if (!passwordEncoder.matches(user.getPassword(), dbUser.getPassword())) {
+            return ResponseEntity.status(401).body("Invalid username or password");
+        }
+
+        if (dbUser.getRole() == null) {
+            dbUser.setRole(Role.USER);
+            repo.save(dbUser);
+        }
+
+        return ResponseEntity.ok(dbUser);
     }
 
     @GetMapping("/username/{username}")
