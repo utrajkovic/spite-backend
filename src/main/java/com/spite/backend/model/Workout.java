@@ -13,8 +13,13 @@ public class Workout {
     private String title;
     private String subtitle;
     private String content;
-    private String userId; // kome trening pripada
+    private String userId; 
+
+
     private List<String> exerciseIds;
+
+    private List<WorkoutExercise> workoutExercises;
+
     @Transient
     private List<Exercise> exercises;
 
@@ -28,6 +33,7 @@ public class Workout {
         this.content = content;
         this.exerciseIds = exerciseIds;
     }
+
 
     public String getId() {
         return id;
@@ -77,6 +83,14 @@ public class Workout {
         this.exerciseIds = exerciseIds;
     }
 
+    public List<WorkoutExercise> getWorkoutExercises() {
+        return workoutExercises;
+    }
+
+    public void setWorkoutExercises(List<WorkoutExercise> workoutExercises) {
+        this.workoutExercises = workoutExercises;
+    }
+
     public List<Exercise> getExercises() {
         return exercises;
     }
@@ -84,5 +98,4 @@ public class Workout {
     public void setExercises(List<Exercise> exercises) {
         this.exercises = exercises;
     }
-
 }

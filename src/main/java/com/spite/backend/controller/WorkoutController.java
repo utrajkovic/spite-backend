@@ -11,6 +11,8 @@ import com.spite.backend.dto.WorkoutWithExercises;
 import com.spite.backend.repository.WorkoutRepository;
 import com.spite.backend.repository.ExerciseRepository;
 import com.spite.backend.repository.AssignedWorkoutRepository;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/workouts")
@@ -41,8 +43,7 @@ public class WorkoutController {
         }
 
         for (Workout w : workouts) {
-            List<Exercise> exList = exerciseRepo.findAllById(w.getExerciseIds());
-            w.setExercises(exList);
+            w.setExercises(resolveExercisesForWorkout(w));
         }
 
         return workouts;
@@ -52,8 +53,7 @@ public class WorkoutController {
     public Workout getById(@PathVariable String id) {
         Workout w = workoutRepo.findById(id).orElse(null);
         if (w != null) {
-            List<Exercise> exList = exerciseRepo.findAllById(w.getExerciseIds());
-            w.setExercises(exList);
+            w.setExercises(resolveExercisesForWorkout(w));
         }
         return w;
     }
@@ -72,8 +72,7 @@ public class WorkoutController {
     public List<Workout> getByUser(@PathVariable String userId) {
         List<Workout> workouts = workoutRepo.findByUserId(userId);
         for (Workout w : workouts) {
-            List<Exercise> exList = exerciseRepo.findAllById(w.getExerciseIds());
-            w.setExercises(exList);
+            w.setExercises(resolveExercisesForWorkout(w));
         }
         return workouts;
     }
@@ -116,12 +115,7 @@ public class WorkoutController {
         var workouts = workoutRepo.findAllById(workoutIds);
 
         var result = workouts.stream().map(w -> {
-            var exercises = w.getExerciseIds() == null ? List.<Exercise>of()
-                    : w.getExerciseIds().stream()
-                            .map(exerciseRepo::findById)
-                            .filter(java.util.Optional::isPresent)
-                            .map(java.util.Optional::get)
-                            .toList();
+            var exercises = resolveExercisesForWorkout(w);
 
             return new WorkoutWithExercises(
                     w.getId(),
@@ -163,11 +157,37 @@ public class WorkoutController {
             existing.setExerciseIds(updated.getExerciseIds());
         }
 
+        if (updated.getWorkoutExercises() != null) {
+            existing.setWorkoutExercises(updated.getWorkoutExercises());
+        }
+
         workoutRepo.save(existing);
 
-        List<Exercise> exList = exerciseRepo.findAllById(existing.getExerciseIds());
-        existing.setExercises(exList);
+        existing.setExercises(resolveExercisesForWorkout(existing));
 
         return ResponseEntity.ok(existing);
     }
+
+    private List<Exercise> resolveExercisesForWorkout(Workout w) {
+        if (w.getExerciseIds() != null && !w.getExerciseIds().isEmpty()) {
+            return exerciseRepo.findAllById(w.getExerciseIds());
+        }
+
+        if (w.getWorkoutExercises() != null && !w.getWorkoutExercises().isEmpty()) {
+            var ids = w.getWorkoutExercises().stream()
+                    .map(we -> we.getExerciseId())
+                    .filter(id -> id != null && !id.isBlank())
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            if (ids.isEmpty()) {
+                return List.of();
+            }
+
+            return exerciseRepo.findAllById(ids);
+        }
+
+        return List.of();
+    }
+
 }
