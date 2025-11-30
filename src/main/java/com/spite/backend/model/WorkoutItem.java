@@ -7,23 +7,25 @@ public class WorkoutItem {
     private String reps;
     private int restBetweenSets;
     private int restAfterExercise;
-    private boolean superset;
+
+    private String supersetExerciseId; 
 
     public WorkoutItem() {
     }
 
     public WorkoutItem(String exerciseId,
-            int sets,
-            String reps,
-            int restBetweenSets,
-            int restAfterExercise,
-            boolean superset) {
+                       int sets,
+                       String reps,
+                       int restBetweenSets,
+                       int restAfterExercise,
+                       String supersetExerciseId) {
+
         this.exerciseId = exerciseId;
         this.sets = sets;
         this.reps = reps;
         this.restBetweenSets = restBetweenSets;
         this.restAfterExercise = restAfterExercise;
-        this.superset = superset;
+        this.supersetExerciseId = supersetExerciseId;
     }
 
     public String getExerciseId() {
@@ -66,11 +68,11 @@ public class WorkoutItem {
         this.restAfterExercise = restAfterExercise;
     }
 
-    public boolean isSuperset() {
-        return superset;
+    public String getSupersetExerciseId() {
+        return supersetExerciseId;
     }
 
-    public void setSuperset(boolean superset) {
-        this.superset = superset;
+    public void setSupersetExerciseId(String supersetExerciseId) {
+        this.supersetExerciseId = supersetExerciseId;
     }
 }
