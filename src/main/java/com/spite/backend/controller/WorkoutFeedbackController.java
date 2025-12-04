@@ -2,6 +2,9 @@ package com.spite.backend.controller;
 
 import com.spite.backend.model.WorkoutFeedback;
 import com.spite.backend.repository.WorkoutFeedbackRepository;
+
+import java.util.List;
+
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,4 +22,10 @@ public class WorkoutFeedbackController {
         feedback.setTimestamp(System.currentTimeMillis());
         return repo.save(feedback);
     }
+
+    @GetMapping("/user/{username}")
+    public List<WorkoutFeedback> getFeedbackForUser(@PathVariable String username) {
+        return repo.findByUserId(username);
+    }
+
 }
