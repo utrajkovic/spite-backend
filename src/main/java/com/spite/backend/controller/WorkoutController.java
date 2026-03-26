@@ -2,7 +2,8 @@ package com.spite.backend.controller;
 
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+
 import java.util.List;
 
 import com.spite.backend.model.Workout;
@@ -22,7 +23,6 @@ public class WorkoutController {
     private final ExerciseRepository exerciseRepo;
     private final AssignedWorkoutRepository assignedRepo;
 
-    @Autowired
     public WorkoutController(
             WorkoutRepository workoutRepo,
             ExerciseRepository exerciseRepo,
@@ -32,51 +32,69 @@ public class WorkoutController {
         this.assignedRepo = assignedRepo;
     }
 
+    private List<String> resolveExerciseIds(Workout w) {
+        if (w.getItems() != null && !w.getItems().isEmpty()) {
+            return w.getItems().stream()
+                    .flatMap(item -> java.util.stream.Stream.of(
+                            item.getExerciseId(),
+                            item.getSupersetExerciseId()))
+                    .filter(eid -> eid != null && !eid.isBlank())
+                    .distinct()
+                    .toList();
+        }
+        return w.getExerciseIds();
+    }
+
+    private void hydrateExercises(Workout w) {
+        List<String> ids = resolveExerciseIds(w);
+        if (ids == null || ids.isEmpty()) {
+            w.setExercises(List.of());
+            return;
+        }
+        List<Exercise> exList = exerciseRepo.findAllById(ids);
+        w.setExercises(exList);
+    }
+
     @GetMapping
     public List<Workout> getAll(@RequestParam(required = false) String userId) {
-        List<Workout> workouts;
-
-        if (userId != null && !userId.isEmpty()) {
-            workouts = workoutRepo.findByUserId(userId);
-        } else {
-            workouts = workoutRepo.findAll();
-        }
-
-        for (Workout w : workouts) {
-            List<Exercise> exList = exerciseRepo.findAllById(w.getExerciseIds());
-            w.setExercises(exList);
-        }
-
+        List<Workout> workouts = (userId != null && !userId.isEmpty())
+                ? workoutRepo.findByUserId(userId)
+                : workoutRepo.findAll();
+        workouts.forEach(this::hydrateExercises);
         return workouts;
     }
 
-    @GetMapping("/{id}")
-    public Workout getById(@PathVariable String id) {
-        Workout w = workoutRepo.findById(id).orElse(null);
-        if (w != null) {
-            List<Exercise> exList = exerciseRepo.findAllById(w.getExerciseIds());
-            w.setExercises(exList);
-        }
+    @GetMapping("/{wid}")
+    public Workout getById(@PathVariable String wid) {
+        Workout w = workoutRepo.findById(wid).orElse(null);
+        if (w != null) hydrateExercises(w);
         return w;
     }
 
     @PostMapping
     public Workout add(@RequestBody Workout w) {
+        if (w.getItems() != null && !w.getItems().isEmpty()) {
+            List<String> ids = w.getItems().stream()
+                    .flatMap(item -> java.util.stream.Stream.of(
+                            item.getExerciseId(),
+                            item.getSupersetExerciseId()))
+                    .filter(eid -> eid != null && !eid.isBlank())
+                    .distinct()
+                    .toList();
+            w.setExerciseIds(ids);
+        }
         return workoutRepo.save(w);
     }
 
-    @DeleteMapping("/{id}")
-    public void delete(@PathVariable String id) {
-        workoutRepo.deleteById(id);
+    @DeleteMapping("/{wid}")
+    public void delete(@PathVariable String wid) {
+        workoutRepo.deleteById(wid);
     }
 
     @GetMapping("/user/{userId}")
     public List<Workout> getByUser(@PathVariable String userId) {
         List<Workout> workouts = workoutRepo.findByUserId(userId);
-        for (Workout w : workouts) {
-            List<Exercise> exList = exerciseRepo.findAllById(w.getExerciseIds());
-            w.setExercises(exList);
-        }
+        workouts.forEach(this::hydrateExercises);
         return workouts;
     }
 
@@ -89,12 +107,10 @@ public class WorkoutController {
         if (workoutOpt.isEmpty()) {
             return ResponseEntity.badRequest().body("Workout not found");
         }
-
         var existing = assignedRepo.findByClientUsernameAndWorkoutId(clientUsername, workoutId);
         if (existing.isPresent()) {
             return ResponseEntity.ok("Already assigned");
         }
-
         assignedRepo.save(new AssignedWorkout(workoutId, clientUsername, assignedBy));
         return ResponseEntity.ok("Assigned successfully");
     }
@@ -118,8 +134,10 @@ public class WorkoutController {
         var workouts = workoutRepo.findAllById(workoutIds);
 
         var result = workouts.stream().map(w -> {
-            var exercises = w.getExerciseIds() == null ? List.<Exercise>of()
-                    : w.getExerciseIds().stream()
+            var ids = resolveExerciseIds(w);
+            var exercises = (ids == null || ids.isEmpty())
+                    ? List.<Exercise>of()
+                    : ids.stream()
                             .map(exerciseRepo::findById)
                             .filter(java.util.Optional::isPresent)
                             .map(java.util.Optional::get)
@@ -134,5 +152,41 @@ public class WorkoutController {
         }).toList();
 
         return ResponseEntity.ok(result);
+    }
+
+    @PutMapping("/{wid}")
+    public ResponseEntity<?> updateWorkout(
+            @PathVariable String wid,
+            @RequestBody Workout updated) {
+
+        var opt = workoutRepo.findById(wid);
+        if (opt.isEmpty()) {
+            return ResponseEntity.badRequest().body("Workout not found");
+        }
+
+        Workout existing = opt.get();
+
+        if (updated.getTitle() != null) existing.setTitle(updated.getTitle());
+        if (updated.getSubtitle() != null) existing.setSubtitle(updated.getSubtitle());
+        if (updated.getContent() != null) existing.setContent(updated.getContent());
+
+        if (updated.getItems() != null) {
+            existing.setItems(updated.getItems());
+            List<String> ids = updated.getItems().stream()
+                    .flatMap(item -> java.util.stream.Stream.of(
+                            item.getExerciseId(),
+                            item.getSupersetExerciseId()))
+                    .filter(eid -> eid != null && !eid.isBlank())
+                    .distinct()
+                    .toList();
+            existing.setExerciseIds(ids);
+        } else if (updated.getExerciseIds() != null) {
+            existing.setExerciseIds(updated.getExerciseIds());
+        }
+
+        workoutRepo.save(existing);
+        hydrateExercises(existing);
+
+        return ResponseEntity.ok(existing);
     }
 }

@@ -3,6 +3,7 @@ package com.spite.backend.model;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.annotation.Transient;
+
 import java.util.List;
 
 @Document(collection = "workouts")
@@ -13,8 +14,12 @@ public class Workout {
     private String title;
     private String subtitle;
     private String content;
-    private String userId; // kome trening pripada
+    private String userId; 
+
     private List<String> exerciseIds;
+
+    private List<WorkoutItem> items;
+
     @Transient
     private List<Exercise> exercises;
 
@@ -77,6 +82,14 @@ public class Workout {
         this.exerciseIds = exerciseIds;
     }
 
+    public List<WorkoutItem> getItems() {
+        return items;
+    }
+
+    public void setItems(List<WorkoutItem> items) {
+        this.items = items;
+    }
+
     public List<Exercise> getExercises() {
         return exercises;
     }
@@ -84,5 +97,4 @@ public class Workout {
     public void setExercises(List<Exercise> exercises) {
         this.exercises = exercises;
     }
-
 }
