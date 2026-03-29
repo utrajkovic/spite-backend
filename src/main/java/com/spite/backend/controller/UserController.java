@@ -1,12 +1,15 @@
 package com.spite.backend.controller;
 
+import com.spite.backend.model.FcmToken;
 import com.spite.backend.model.Role;
 import com.spite.backend.model.User;
+import com.spite.backend.repository.FcmTokenRepository;
 import com.spite.backend.repository.UserRepository;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -15,10 +18,12 @@ import java.util.Optional;
 public class UserController {
 
     private final UserRepository repo;
+    private final FcmTokenRepository fcmTokenRepo;
     private PasswordEncoder passwordEncoder;
 
-    public UserController(UserRepository repo, PasswordEncoder passwordEncoder) {
+    public UserController(UserRepository repo, FcmTokenRepository fcmTokenRepo, PasswordEncoder passwordEncoder) {
         this.repo = repo;
+        this.fcmTokenRepo = fcmTokenRepo;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -73,5 +78,20 @@ public class UserController {
     public ResponseEntity<?> checkUserExists(@PathVariable String username) {
         boolean exists = repo.existsByUsername(username);
         return ResponseEntity.ok(exists);
+    }
+
+    @PostMapping("/fcm-token")
+    public ResponseEntity<?> saveFcmToken(@RequestBody Map<String, String> body) {
+        String username = body.get("username");
+        String token = body.get("token");
+        if (username == null || token == null) return ResponseEntity.badRequest().body("Missing fields");
+
+        // Upsert - jedan token po korisniku
+        FcmToken fcmToken = fcmTokenRepo.findByUsername(username)
+                .orElse(new FcmToken(username, token));
+        fcmToken.setToken(token);
+        fcmTokenRepo.save(fcmToken);
+
+        return ResponseEntity.ok("Token saved");
     }
 }

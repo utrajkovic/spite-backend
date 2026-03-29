@@ -13,6 +13,7 @@ import com.spite.backend.dto.WorkoutWithExercises;
 import com.spite.backend.repository.WorkoutRepository;
 import com.spite.backend.repository.ExerciseRepository;
 import com.spite.backend.repository.AssignedWorkoutRepository;
+import com.spite.backend.service.PushNotificationService;
 
 @RestController
 @RequestMapping("/api/workouts")
@@ -22,14 +23,17 @@ public class WorkoutController {
     private final WorkoutRepository workoutRepo;
     private final ExerciseRepository exerciseRepo;
     private final AssignedWorkoutRepository assignedRepo;
+    private final PushNotificationService pushService;
 
     public WorkoutController(
             WorkoutRepository workoutRepo,
             ExerciseRepository exerciseRepo,
-            AssignedWorkoutRepository assignedRepo) {
+            AssignedWorkoutRepository assignedRepo,
+            PushNotificationService pushService) {
         this.workoutRepo = workoutRepo;
         this.exerciseRepo = exerciseRepo;
         this.assignedRepo = assignedRepo;
+        this.pushService = pushService;
     }
 
     private List<String> resolveExerciseIds(Workout w) {
@@ -112,6 +116,12 @@ public class WorkoutController {
             return ResponseEntity.ok("Already assigned");
         }
         assignedRepo.save(new AssignedWorkout(workoutId, clientUsername, assignedBy));
+        // Push notifikacija klijentu
+        var workout = workoutOpt.get();
+        pushService.sendToUser(clientUsername,
+                "🏋️ New workout assigned",
+                "Your trainer assigned you: " + workout.getTitle(),
+                "workout_assigned", workoutId);
         return ResponseEntity.ok("Assigned successfully");
     }
 
