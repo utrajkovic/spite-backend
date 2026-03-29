@@ -9,7 +9,8 @@ public class WorkoutWithExercises {
     private String title;
     private String subtitle;
     private String content;
-    private List<Exercise> exercises; // puni objekti vežbi
+    private String note;
+    private List<Exercise> exercises;
 
     public WorkoutWithExercises() {}
 
@@ -21,15 +22,26 @@ public class WorkoutWithExercises {
         this.exercises = exercises;
     }
 
+    public WorkoutWithExercises(String id, String title, String subtitle, String content, String note, List<Exercise> exercises) {
+        this.id = id;
+        this.title = title;
+        this.subtitle = subtitle;
+        this.content = content;
+        this.note = note;
+        this.exercises = exercises;
+    }
+
     public String getId() { return id; }
     public String getTitle() { return title; }
     public String getSubtitle() { return subtitle; }
     public String getContent() { return content; }
+    public String getNote() { return note; }
     public List<Exercise> getExercises() { return exercises; }
 
     public void setId(String id) { this.id = id; }
     public void setTitle(String title) { this.title = title; }
     public void setSubtitle(String subtitle) { this.subtitle = subtitle; }
     public void setContent(String content) { this.content = content; }
+    public void setNote(String note) { this.note = note; }
     public void setExercises(List<Exercise> exercises) { this.exercises = exercises; }
 }

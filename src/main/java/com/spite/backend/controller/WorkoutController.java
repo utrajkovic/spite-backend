@@ -137,6 +137,19 @@ public class WorkoutController {
         return ResponseEntity.ok("Unassigned successfully");
     }
 
+    @PutMapping("/assign/note")
+    public ResponseEntity<?> updateNote(
+            @RequestParam String workoutId,
+            @RequestParam String clientUsername,
+            @RequestParam(required = false) String note) {
+        var linkOpt = assignedRepo.findByClientUsernameAndWorkoutId(clientUsername, workoutId);
+        if (linkOpt.isEmpty()) return ResponseEntity.badRequest().body("Assignment not found");
+        AssignedWorkout link = linkOpt.get();
+        link.setNote(note != null ? note : "");
+        assignedRepo.save(link);
+        return ResponseEntity.ok("Note updated");
+    }
+
     @GetMapping("/client/{username}")
     public ResponseEntity<?> getClientWorkoutsWithExercises(@PathVariable String username) {
         var links = assignedRepo.findByClientUsername(username);
@@ -153,11 +166,20 @@ public class WorkoutController {
                             .map(java.util.Optional::get)
                             .toList();
 
+            // Nađi napomenu iz assigned linka
+            String note = links.stream()
+                    .filter(l -> l.getWorkoutId().equals(w.getId()))
+                    .map(AssignedWorkout::getNote)
+                    .filter(n -> n != null && !n.isBlank())
+                    .findFirst()
+                    .orElse(null);
+
             return new WorkoutWithExercises(
                     w.getId(),
                     w.getTitle(),
                     w.getSubtitle(),
                     w.getContent(),
+                    note,
                     exercises);
         }).toList();
 

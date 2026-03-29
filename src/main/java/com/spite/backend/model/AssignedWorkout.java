@@ -12,7 +12,8 @@ public class AssignedWorkout {
 
     private String workoutId;         
     private String clientUsername;    
-    private String assignedBy;      
+    private String assignedBy;
+    private String note;
     private Instant createdAt = Instant.now();
 
     public AssignedWorkout() {}
@@ -32,6 +33,9 @@ public class AssignedWorkout {
 
     public String getAssignedBy() { return assignedBy; }
     public void setAssignedBy(String assignedBy) { this.assignedBy = assignedBy; }
+
+    public String getNote() { return note; }
+    public void setNote(String note) { this.note = note; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
