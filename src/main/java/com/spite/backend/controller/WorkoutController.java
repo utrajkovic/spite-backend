@@ -180,7 +180,8 @@ public class WorkoutController {
                     w.getSubtitle(),
                     w.getContent(),
                     note,
-                    exercises);
+                    exercises,
+                    w.getItems());
         }).toList();
 
         return ResponseEntity.ok(result);
