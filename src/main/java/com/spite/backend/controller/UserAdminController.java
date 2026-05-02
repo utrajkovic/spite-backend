@@ -111,6 +111,42 @@ public class UserAdminController {
         return ResponseEntity.ok("Password updated successfully.");
     }
 
+    @PutMapping("/{username}/block")
+    public ResponseEntity<String> blockUser(
+            @RequestParam String adminUsername,
+            @PathVariable String username) {
+
+        if (!guard.hasRole(adminUsername, Role.ADMIN)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
+        Optional<User> optUser = repo.findByUsername(username);
+        if (optUser.isEmpty()) return ResponseEntity.badRequest().body("User not found");
+
+        User user = optUser.get();
+        user.setBlocked(true);
+        repo.save(user);
+        return ResponseEntity.ok("User blocked");
+    }
+
+    @PutMapping("/{username}/unblock")
+    public ResponseEntity<String> unblockUser(
+            @RequestParam String adminUsername,
+            @PathVariable String username) {
+
+        if (!guard.hasRole(adminUsername, Role.ADMIN)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
+        Optional<User> optUser = repo.findByUsername(username);
+        if (optUser.isEmpty()) return ResponseEntity.badRequest().body("User not found");
+
+        User user = optUser.get();
+        user.setBlocked(false);
+        repo.save(user);
+        return ResponseEntity.ok("User unblocked");
+    }
+
     @DeleteMapping("/{username}")
     public ResponseEntity<String> deleteUser(
             @RequestParam String adminUsername,

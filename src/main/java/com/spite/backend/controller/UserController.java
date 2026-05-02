@@ -52,6 +52,10 @@ public class UserController {
 
         User dbUser = existing.get();
 
+        if (dbUser.isBlocked()) {
+            return ResponseEntity.status(403).body("Account blocked");
+        }
+
         if (!passwordEncoder.matches(user.getPassword(), dbUser.getPassword())) {
             return ResponseEntity.status(401).body("Invalid username or password");
         }
@@ -62,6 +66,18 @@ public class UserController {
         }
 
         return ResponseEntity.ok(dbUser);
+    }
+
+    @GetMapping("/validate/{username}")
+    public ResponseEntity<?> validateUser(@PathVariable String username) {
+        Optional<User> user = repo.findByUsername(username);
+        if (user.isEmpty()) {
+            return ResponseEntity.status(404).body("deleted");
+        }
+        if (user.get().isBlocked()) {
+            return ResponseEntity.status(403).body("blocked");
+        }
+        return ResponseEntity.ok("active");
     }
 
     @GetMapping("/username/{username}")
