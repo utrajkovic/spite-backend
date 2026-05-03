@@ -16,6 +16,7 @@ public class WorkoutFeedback {
     private String workoutTitle;
     private long timestamp;
     private Integer completionPercent;
+    private Boolean trainerRead;
 
     private List<ExerciseFeedback> exercises;
 
@@ -39,6 +40,9 @@ public class WorkoutFeedback {
 
     public Integer getCompletionPercent() { return completionPercent; }
     public void setCompletionPercent(Integer completionPercent) { this.completionPercent = completionPercent; }
+
+    public Boolean getTrainerRead() { return trainerRead; }
+    public void setTrainerRead(Boolean trainerRead) { this.trainerRead = trainerRead; }
 
     public static class ExerciseFeedback {
         private String exerciseId;

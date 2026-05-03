@@ -80,6 +80,7 @@ public class WorkoutFeedbackController {
         }
 
         feedback.setTimestamp(System.currentTimeMillis());
+        feedback.setTrainerRead(false);
 
         if (feedback.getWorkoutTitle() == null || feedback.getWorkoutTitle().isBlank()) {
             Optional<Workout> workoutOpt = workoutRepo.findById(feedback.getWorkoutId());
@@ -113,7 +114,26 @@ public class WorkoutFeedbackController {
             }
             existing.setExercises(updated.getExercises());
             if (updated.getCompletionPercent() != null) existing.setCompletionPercent(updated.getCompletionPercent());
+            existing.setTrainerRead(false);
             return ResponseEntity.ok(repo.save(existing));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}/trainer-read")
+    public ResponseEntity<?> markTrainerRead(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String id) {
+        return repo.findById(id).map(existing -> {
+            String actor = sessionAuthService.getUsername(authorization).orElse(null);
+            if (actor == null
+                    || !guard.hasRole(actor, com.spite.backend.model.Role.TRAINER)
+                    || !trainerClientRepo.existsByTrainerUsernameAndClientUsername(actor, existing.getUserId())) {
+                return ResponseEntity.status(403).body("Access denied.");
+            }
+
+            existing.setTrainerRead(true);
+            repo.save(existing);
+            return ResponseEntity.ok("Marked as read");
         }).orElse(ResponseEntity.notFound().build());
     }
 
