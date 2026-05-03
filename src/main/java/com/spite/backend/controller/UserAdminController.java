@@ -6,7 +6,15 @@ import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.spite.backend.model.AssignedWorkout;
 import com.spite.backend.model.ClientWorkoutLink;
@@ -17,12 +25,16 @@ import com.spite.backend.model.User;
 import com.spite.backend.model.Workout;
 import com.spite.backend.repository.AssignedWorkoutRepository;
 import com.spite.backend.repository.ClientWorkoutLinkRepository;
+import com.spite.backend.repository.CompletedWorkoutRepository;
 import com.spite.backend.repository.ExerciseRepository;
 import com.spite.backend.repository.TrainerClientRepository;
 import com.spite.backend.repository.UserRepository;
+import com.spite.backend.repository.WorkoutFeedbackRepository;
 import com.spite.backend.repository.WorkoutRepository;
 import com.spite.backend.service.CloudinaryService;
+import com.spite.backend.service.InputValidationService;
 import com.spite.backend.service.RoleGuardService;
+import com.spite.backend.service.SessionAuthService;
 
 @RestController
 @RequestMapping("/api/admin/users")
@@ -37,6 +49,10 @@ public class UserAdminController {
     private final TrainerClientRepository trainerClientRepo;
     private final ClientWorkoutLinkRepository clientWorkoutLinkRepo;
     private final AssignedWorkoutRepository assignedWorkoutRepo;
+    private final CompletedWorkoutRepository completedWorkoutRepo;
+    private final WorkoutFeedbackRepository workoutFeedbackRepo;
+    private final SessionAuthService sessionAuthService;
+    private final InputValidationService validation;
     private final PasswordEncoder passwordEncoder;
 
     public UserAdminController(
@@ -48,6 +64,10 @@ public class UserAdminController {
             TrainerClientRepository trainerClientRepo,
             ClientWorkoutLinkRepository clientWorkoutLinkRepo,
             AssignedWorkoutRepository assignedWorkoutRepo,
+            CompletedWorkoutRepository completedWorkoutRepo,
+            WorkoutFeedbackRepository workoutFeedbackRepo,
+            SessionAuthService sessionAuthService,
+            InputValidationService validation,
             PasswordEncoder passwordEncoder) {
         this.repo = repo;
         this.guard = guard;
@@ -57,21 +77,39 @@ public class UserAdminController {
         this.trainerClientRepo = trainerClientRepo;
         this.clientWorkoutLinkRepo = clientWorkoutLinkRepo;
         this.assignedWorkoutRepo = assignedWorkoutRepo;
+        this.completedWorkoutRepo = completedWorkoutRepo;
+        this.workoutFeedbackRepo = workoutFeedbackRepo;
+        this.sessionAuthService = sessionAuthService;
+        this.validation = validation;
         this.passwordEncoder = passwordEncoder;
     }
 
+    private boolean isAuthorizedAdmin(String authorization, String adminUsername) {
+        if (validation.invalidUsername(adminUsername)) {
+            return false;
+        }
+        return sessionAuthService.isSameUser(authorization, adminUsername)
+                && guard.hasRole(adminUsername, Role.ADMIN);
+    }
+
     @GetMapping
-    public List<User> listAll() {
-        return repo.findAll();
+    public ResponseEntity<?> listAll(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam String adminUsername) {
+        if (!isAuthorizedAdmin(authorization, adminUsername)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+        return ResponseEntity.ok(repo.findAll());
     }
 
     @PutMapping("/{username}/role")
     public ResponseEntity<String> updateRole(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String adminUsername,
             @PathVariable String username,
             @RequestParam Role role) {
 
-        if (!guard.hasRole(adminUsername, Role.ADMIN)) {
+        if (!isAuthorizedAdmin(authorization, adminUsername)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Access denied: only admins can change roles.");
         }
@@ -90,13 +128,18 @@ public class UserAdminController {
 
     @PutMapping("/{username}/password")
     public ResponseEntity<String> updatePassword(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String adminUsername,
             @PathVariable String username,
             @RequestParam String newPassword) {
 
-        if (!guard.hasRole(adminUsername, Role.ADMIN)) {
+        if (!isAuthorizedAdmin(authorization, adminUsername)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Access denied: only admins can change passwords.");
+        }
+
+        if (validation.invalidPassword(newPassword)) {
+            return ResponseEntity.badRequest().body("Invalid password format");
         }
 
         Optional<User> optUser = repo.findByUsername(username);
@@ -113,10 +156,11 @@ public class UserAdminController {
 
     @PutMapping("/{username}/block")
     public ResponseEntity<String> blockUser(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String adminUsername,
             @PathVariable String username) {
 
-        if (!guard.hasRole(adminUsername, Role.ADMIN)) {
+        if (!isAuthorizedAdmin(authorization, adminUsername)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
         }
 
@@ -126,15 +170,17 @@ public class UserAdminController {
         User user = optUser.get();
         user.setBlocked(true);
         repo.save(user);
+        sessionAuthService.invalidateByUsername(user.getUsername());
         return ResponseEntity.ok("User blocked");
     }
 
     @PutMapping("/{username}/unblock")
     public ResponseEntity<String> unblockUser(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String adminUsername,
             @PathVariable String username) {
 
-        if (!guard.hasRole(adminUsername, Role.ADMIN)) {
+        if (!isAuthorizedAdmin(authorization, adminUsername)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
         }
 
@@ -149,10 +195,11 @@ public class UserAdminController {
 
     @DeleteMapping("/{username}")
     public ResponseEntity<String> deleteUser(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String adminUsername,
             @PathVariable String username) {
 
-        if (!guard.hasRole(adminUsername, Role.ADMIN)) {
+        if (!isAuthorizedAdmin(authorization, adminUsername)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Access denied: only admins can delete users.");
         }
@@ -199,6 +246,10 @@ public class UserAdminController {
                 .filter(a -> username.equals(a.getAssignedBy()))
                 .toList();
         assignedWorkoutRepo.deleteAll(assignedByTrainer);
+
+        completedWorkoutRepo.deleteByUsername(username);
+        workoutFeedbackRepo.deleteByUserId(username);
+        sessionAuthService.invalidateByUsername(username);
 
         repo.delete(user);
 

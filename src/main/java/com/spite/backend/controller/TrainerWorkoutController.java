@@ -10,6 +10,10 @@ import com.spite.backend.repository.WorkoutRepository;
 import com.spite.backend.repository.ClientWorkoutLinkRepository;
 import com.spite.backend.repository.ExerciseRepository;
 import com.spite.backend.repository.UserRepository;
+import com.spite.backend.service.InputValidationService;
+import com.spite.backend.service.RoleGuardService;
+import com.spite.backend.service.SessionAuthService;
+import com.spite.backend.model.Role;
 
 @RestController
 @RequestMapping("/api/trainer")
@@ -20,20 +24,38 @@ public class TrainerWorkoutController {
     private final ClientWorkoutLinkRepository linkRepo;
     private final UserRepository userRepo;
     private final ExerciseRepository exerciseRepo;
+    private final SessionAuthService sessionAuthService;
+    private final RoleGuardService guard;
+    private final InputValidationService validation;
 
     public TrainerWorkoutController(
             WorkoutRepository workoutRepo,
             ClientWorkoutLinkRepository linkRepo,
             UserRepository userRepo,
-            ExerciseRepository exerciseRepo) {
+            ExerciseRepository exerciseRepo,
+            SessionAuthService sessionAuthService,
+            RoleGuardService guard,
+            InputValidationService validation) {
         this.workoutRepo = workoutRepo;
         this.linkRepo = linkRepo;
         this.userRepo = userRepo;
         this.exerciseRepo = exerciseRepo;
+        this.sessionAuthService = sessionAuthService;
+        this.guard = guard;
+        this.validation = validation;
     }
 
     @GetMapping("/workouts/{trainerUsername}")
-    public ResponseEntity<?> getTrainerWorkouts(@PathVariable String trainerUsername) {
+    public ResponseEntity<?> getTrainerWorkouts(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String trainerUsername) {
+        if (validation.invalidUsername(trainerUsername)) {
+            return ResponseEntity.badRequest().body("Invalid trainer username");
+        }
+        if (!sessionAuthService.isSameUser(authorization, trainerUsername) || !guard.hasRole(trainerUsername, Role.TRAINER)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
         var trainerOpt = userRepo.findByUsername(trainerUsername);
         if (trainerOpt.isEmpty()) {
             return ResponseEntity.badRequest().body("Trainer not found");
@@ -45,7 +67,16 @@ public class TrainerWorkoutController {
     }
 
     @GetMapping("/client-workouts/{clientUsername}")
-    public ResponseEntity<?> getClientWorkouts(@PathVariable String clientUsername) {
+    public ResponseEntity<?> getClientWorkouts(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String clientUsername) {
+        if (validation.invalidUsername(clientUsername)) {
+            return ResponseEntity.badRequest().body("Invalid client username");
+        }
+        if (!sessionAuthService.isSameUser(authorization, clientUsername)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
         List<ClientWorkoutLink> links = linkRepo.findByClientUsername(clientUsername);
         List<String> workoutIds = links.stream().map(ClientWorkoutLink::getWorkoutId).toList();
         List<Workout> workouts = workoutRepo.findAllById(workoutIds);
@@ -54,9 +85,17 @@ public class TrainerWorkoutController {
 
     @PostMapping("/assign")
     public ResponseEntity<?> assignWorkout(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String trainer,
             @RequestParam String client,
             @RequestParam String workoutId) {
+        if (validation.invalidUsername(trainer) || validation.invalidUsername(client) || validation.isBlank(workoutId)) {
+            return ResponseEntity.badRequest().body("Invalid request data");
+        }
+        if (!sessionAuthService.isSameUser(authorization, trainer) || !guard.hasRole(trainer, Role.TRAINER)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
         Optional<ClientWorkoutLink> existing = linkRepo.findByClientUsernameAndWorkoutId(client, workoutId);
         if (existing.isPresent()) {
             return ResponseEntity.badRequest().body("Workout already assigned to this client");
@@ -73,8 +112,17 @@ public class TrainerWorkoutController {
 
     @DeleteMapping("/unassign")
     public ResponseEntity<?> unassignWorkout(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam String trainer,
             @RequestParam String client,
             @RequestParam String workoutId) {
+        if (validation.invalidUsername(trainer) || validation.invalidUsername(client) || validation.isBlank(workoutId)) {
+            return ResponseEntity.badRequest().body("Invalid request data");
+        }
+        if (!sessionAuthService.isSameUser(authorization, trainer) || !guard.hasRole(trainer, Role.TRAINER)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
         Optional<ClientWorkoutLink> existing = linkRepo.findByClientUsernameAndWorkoutId(client, workoutId);
         if (existing.isEmpty()) {
             return ResponseEntity.badRequest().body("Assignment not found");
@@ -85,7 +133,16 @@ public class TrainerWorkoutController {
     }
 
     @GetMapping("/client-workouts-full/{clientUsername}")
-    public ResponseEntity<?> getClientWorkoutsFull(@PathVariable String clientUsername) {
+    public ResponseEntity<?> getClientWorkoutsFull(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String clientUsername) {
+        if (validation.invalidUsername(clientUsername)) {
+            return ResponseEntity.badRequest().body("Invalid client username");
+        }
+        if (!sessionAuthService.isSameUser(authorization, clientUsername)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
         List<ClientWorkoutLink> links = linkRepo.findByClientUsername(clientUsername);
         if (links.isEmpty()) {
             return ResponseEntity.ok(List.of());

@@ -10,9 +10,13 @@ import com.spite.backend.service.PushNotificationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
+
 import com.spite.backend.service.RoleGuardService;
 import com.spite.backend.model.Role;
+import com.spite.backend.service.InputValidationService;
+import com.spite.backend.service.SessionAuthService;
 
 @RestController
 @RequestMapping("/api/trainer")
@@ -24,21 +28,35 @@ public class TrainerController {
     private final UserRepository userRepo;
     private final RoleGuardService guard;
     private final PushNotificationService pushService;
+    private final SessionAuthService sessionAuthService;
+    private final InputValidationService validation;
 
     public TrainerController(TrainerClientRepository linkRepo, TrainerInviteRepository inviteRepo,
-            UserRepository userRepo, RoleGuardService guard, PushNotificationService pushService) {
+            UserRepository userRepo, RoleGuardService guard, PushNotificationService pushService,
+            SessionAuthService sessionAuthService, InputValidationService validation) {
         this.linkRepo = linkRepo;
         this.inviteRepo = inviteRepo;
         this.userRepo = userRepo;
         this.guard = guard;
         this.pushService = pushService;
+        this.sessionAuthService = sessionAuthService;
+        this.validation = validation;
     }
 
     // Trener šalje invite klijentu
     @PostMapping("/invite")
     public ResponseEntity<?> sendInvite(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String trainerUsername,
             @RequestParam String clientUsername) {
+
+        if (validation.invalidUsername(trainerUsername) || validation.invalidUsername(clientUsername)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+
+        if (!sessionAuthService.isSameUser(authorization, trainerUsername)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Invalid trainer session.");
+        }
 
         if (!guard.hasRole(trainerUsername, Role.TRAINER)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -67,17 +85,32 @@ public class TrainerController {
 
     // Klijent dohvata svoje pending invite-ove
     @GetMapping("/invites/{clientUsername}")
-    public List<TrainerInvite> getPendingInvites(@PathVariable String clientUsername) {
-        return inviteRepo.findByClientUsernameAndStatus(clientUsername, "PENDING");
+    public ResponseEntity<?> getPendingInvites(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String clientUsername) {
+        if (validation.invalidUsername(clientUsername)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!sessionAuthService.isSameUser(authorization, clientUsername)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+        return ResponseEntity.ok(inviteRepo.findByClientUsernameAndStatus(clientUsername, "PENDING"));
     }
 
     // Klijent prihvata invite
     @PostMapping("/invite/{inviteId}/accept")
-    public ResponseEntity<?> acceptInvite(@PathVariable String inviteId) {
+    public ResponseEntity<?> acceptInvite(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String inviteId) {
         var opt = inviteRepo.findById(inviteId);
         if (opt.isEmpty()) return ResponseEntity.badRequest().body("Invite not found");
 
         TrainerInvite invite = opt.get();
+        String actor = sessionAuthService.getUsername(authorization).orElse(null);
+        if (actor == null || !actor.equals(invite.getClientUsername())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
         invite.setStatus("ACCEPTED");
         inviteRepo.save(invite);
 
@@ -91,11 +124,18 @@ public class TrainerController {
 
     // Klijent odbija invite
     @PostMapping("/invite/{inviteId}/decline")
-    public ResponseEntity<?> declineInvite(@PathVariable String inviteId) {
+    public ResponseEntity<?> declineInvite(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String inviteId) {
         var opt = inviteRepo.findById(inviteId);
         if (opt.isEmpty()) return ResponseEntity.badRequest().body("Invite not found");
 
         TrainerInvite invite = opt.get();
+        String actor = sessionAuthService.getUsername(authorization).orElse(null);
+        if (actor == null || !actor.equals(invite.getClientUsername())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
         invite.setStatus("DECLINED");
         inviteRepo.save(invite);
 
@@ -103,14 +143,33 @@ public class TrainerController {
     }
 
     @GetMapping("/clients/{trainerUsername}")
-    public List<TrainerClientLink> getClients(@PathVariable String trainerUsername) {
-        return linkRepo.findByTrainerUsername(trainerUsername);
+    public ResponseEntity<?> getClients(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String trainerUsername) {
+        if (validation.invalidUsername(trainerUsername)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!sessionAuthService.isSameUser(authorization, trainerUsername)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+        if (!guard.hasRole(trainerUsername, Role.TRAINER)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+        return ResponseEntity.ok(linkRepo.findByTrainerUsername(trainerUsername));
     }
 
     @DeleteMapping("/remove-client")
     public ResponseEntity<String> removeClient(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String trainerUsername,
             @RequestParam String clientUsername) {
+
+        if (validation.invalidUsername(trainerUsername) || validation.invalidUsername(clientUsername)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!sessionAuthService.isSameUser(authorization, trainerUsername) || !guard.hasRole(trainerUsername, Role.TRAINER)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
 
         List<TrainerClientLink> links = linkRepo.findByTrainerUsername(trainerUsername);
         links.stream()

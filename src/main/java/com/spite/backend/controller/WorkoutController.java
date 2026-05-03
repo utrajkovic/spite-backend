@@ -10,10 +10,16 @@ import com.spite.backend.model.Workout;
 import com.spite.backend.model.Exercise;
 import com.spite.backend.model.AssignedWorkout;
 import com.spite.backend.dto.WorkoutWithExercises;
+import com.spite.backend.model.Role;
 import com.spite.backend.repository.WorkoutRepository;
 import com.spite.backend.repository.ExerciseRepository;
 import com.spite.backend.repository.AssignedWorkoutRepository;
+import com.spite.backend.repository.TrainerClientRepository;
+import com.spite.backend.repository.UserRepository;
+import com.spite.backend.service.InputValidationService;
 import com.spite.backend.service.PushNotificationService;
+import com.spite.backend.service.RoleGuardService;
+import com.spite.backend.service.SessionAuthService;
 
 @RestController
 @RequestMapping("/api/workouts")
@@ -24,16 +30,56 @@ public class WorkoutController {
     private final ExerciseRepository exerciseRepo;
     private final AssignedWorkoutRepository assignedRepo;
     private final PushNotificationService pushService;
+    private final UserRepository userRepo;
+    private final SessionAuthService sessionAuthService;
+    private final InputValidationService validation;
+    private final RoleGuardService guard;
+    private final TrainerClientRepository trainerClientRepo;
 
     public WorkoutController(
             WorkoutRepository workoutRepo,
             ExerciseRepository exerciseRepo,
             AssignedWorkoutRepository assignedRepo,
-            PushNotificationService pushService) {
+            PushNotificationService pushService,
+            UserRepository userRepo,
+            SessionAuthService sessionAuthService,
+            InputValidationService validation,
+            RoleGuardService guard,
+            TrainerClientRepository trainerClientRepo) {
         this.workoutRepo = workoutRepo;
         this.exerciseRepo = exerciseRepo;
         this.assignedRepo = assignedRepo;
         this.pushService = pushService;
+        this.userRepo = userRepo;
+        this.sessionAuthService = sessionAuthService;
+        this.validation = validation;
+        this.guard = guard;
+        this.trainerClientRepo = trainerClientRepo;
+    }
+
+    private boolean canAccessUserData(String authorization, String username) {
+        String actor = sessionAuthService.getUsername(authorization).orElse(null);
+        if (actor == null) {
+            return false;
+        }
+        return actor.equals(username)
+                || guard.hasRole(actor, Role.ADMIN)
+                || trainerClientRepo.existsByTrainerUsernameAndClientUsername(actor, username);
+    }
+
+    private boolean canMutateWorkout(String authorization, Workout workout) {
+        String actor = sessionAuthService.getUsername(authorization).orElse(null);
+        if (actor == null) {
+            return false;
+        }
+        if (guard.hasRole(actor, Role.ADMIN)) {
+            return true;
+        }
+        var actorUser = userRepo.findByUsername(actor).orElse(null);
+        if (actorUser == null) {
+            return false;
+        }
+        return workout.getUserId() != null && workout.getUserId().equals(actorUser.getId());
     }
 
     private List<String> resolveExerciseIds(Workout w) {
@@ -76,7 +122,25 @@ public class WorkoutController {
     }
 
     @PostMapping
-    public Workout add(@RequestBody Workout w) {
+    public ResponseEntity<?> add(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody Workout w) {
+        if (validation.isBlank(w.getTitle()) || validation.tooLong(w.getTitle(), 120)) {
+            return ResponseEntity.badRequest().body("Invalid workout title");
+        }
+        if (validation.isBlank(w.getUserId())) {
+            return ResponseEntity.badRequest().body("Missing workout owner");
+        }
+
+        String actor = sessionAuthService.getUsername(authorization).orElse(null);
+        if (actor == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
+        }
+        var actorUser = userRepo.findByUsername(actor).orElse(null);
+        if (actorUser == null || (!guard.hasRole(actor, Role.ADMIN) && !w.getUserId().equals(actorUser.getId()))) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
         if (w.getItems() != null && !w.getItems().isEmpty()) {
             List<String> ids = w.getItems().stream()
                     .flatMap(item -> java.util.stream.Stream.of(
@@ -87,12 +151,23 @@ public class WorkoutController {
                     .toList();
             w.setExerciseIds(ids);
         }
-        return workoutRepo.save(w);
+        return ResponseEntity.ok(workoutRepo.save(w));
     }
 
     @DeleteMapping("/{wid}")
-    public void delete(@PathVariable String wid) {
+    public ResponseEntity<?> delete(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String wid) {
+        Workout existing = workoutRepo.findById(wid).orElse(null);
+        if (existing == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!canMutateWorkout(authorization, existing)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
         workoutRepo.deleteById(wid);
+        return ResponseEntity.ok("Workout deleted");
     }
 
     @GetMapping("/user/{userId}")
@@ -104,9 +179,17 @@ public class WorkoutController {
 
     @PostMapping("/assign")
     public ResponseEntity<?> assignWorkoutToClient(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String workoutId,
             @RequestParam String clientUsername,
             @RequestParam String assignedBy) {
+        if (validation.isBlank(workoutId) || validation.invalidUsername(clientUsername) || validation.invalidUsername(assignedBy)) {
+            return ResponseEntity.badRequest().body("Invalid assign request");
+        }
+        if (!sessionAuthService.isSameUser(authorization, assignedBy) || !guard.hasRole(assignedBy, Role.TRAINER)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
         var workoutOpt = workoutRepo.findById(workoutId);
         if (workoutOpt.isEmpty()) {
             return ResponseEntity.badRequest().body("Workout not found");
@@ -127,8 +210,17 @@ public class WorkoutController {
 
     @DeleteMapping("/assign")
     public ResponseEntity<?> unassignWorkoutFromClient(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String workoutId,
-            @RequestParam String clientUsername) {
+            @RequestParam String clientUsername,
+            @RequestParam String assignedBy) {
+        if (validation.isBlank(workoutId) || validation.invalidUsername(clientUsername) || validation.invalidUsername(assignedBy)) {
+            return ResponseEntity.badRequest().body("Invalid unassign request");
+        }
+        if (!sessionAuthService.isSameUser(authorization, assignedBy) || !guard.hasRole(assignedBy, Role.TRAINER)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
         var linkOpt = assignedRepo.findByClientUsernameAndWorkoutId(clientUsername, workoutId);
         if (linkOpt.isEmpty()) {
             return ResponseEntity.badRequest().body("Assignment not found");
@@ -139,9 +231,21 @@ public class WorkoutController {
 
     @PutMapping("/assign/note")
     public ResponseEntity<?> updateNote(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam String workoutId,
             @RequestParam String clientUsername,
+            @RequestParam String trainerUsername,
             @RequestParam(required = false) String note) {
+        if (validation.isBlank(workoutId) || validation.invalidUsername(clientUsername) || validation.invalidUsername(trainerUsername)) {
+            return ResponseEntity.badRequest().body("Invalid note request");
+        }
+        if (!sessionAuthService.isSameUser(authorization, trainerUsername) || !guard.hasRole(trainerUsername, Role.TRAINER)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+        if (validation.tooLong(note, 1000)) {
+            return ResponseEntity.badRequest().body("Note is too long");
+        }
+
         var linkOpt = assignedRepo.findByClientUsernameAndWorkoutId(clientUsername, workoutId);
         if (linkOpt.isEmpty()) return ResponseEntity.badRequest().body("Assignment not found");
         AssignedWorkout link = linkOpt.get();
@@ -151,7 +255,16 @@ public class WorkoutController {
     }
 
     @GetMapping("/client/{username}")
-    public ResponseEntity<?> getClientWorkoutsWithExercises(@PathVariable String username) {
+    public ResponseEntity<?> getClientWorkoutsWithExercises(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String username) {
+        if (validation.invalidUsername(username)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!canAccessUserData(authorization, username)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
         var links = assignedRepo.findByClientUsername(username);
         var workoutIds = links.stream().map(AssignedWorkout::getWorkoutId).toList();
         var workouts = workoutRepo.findAllById(workoutIds);
@@ -189,6 +302,7 @@ public class WorkoutController {
 
     @PutMapping("/{wid}")
     public ResponseEntity<?> updateWorkout(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String wid,
             @RequestBody Workout updated) {
 
@@ -198,6 +312,16 @@ public class WorkoutController {
         }
 
         Workout existing = opt.get();
+        if (!canMutateWorkout(authorization, existing)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+
+        if (updated.getTitle() != null && (validation.isBlank(updated.getTitle()) || validation.tooLong(updated.getTitle(), 120))) {
+            return ResponseEntity.badRequest().body("Invalid workout title");
+        }
+        if (updated.getContent() != null && validation.tooLong(updated.getContent(), 4000)) {
+            return ResponseEntity.badRequest().body("Workout content is too long");
+        }
 
         if (updated.getTitle() != null) existing.setTitle(updated.getTitle());
         if (updated.getSubtitle() != null) existing.setSubtitle(updated.getSubtitle());
