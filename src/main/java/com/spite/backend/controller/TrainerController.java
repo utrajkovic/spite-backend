@@ -142,6 +142,23 @@ public class TrainerController {
         return ResponseEntity.ok("Invite declined");
     }
 
+    @GetMapping("/my-trainer/{clientUsername}")
+    public ResponseEntity<?> getMyTrainer(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String clientUsername) {
+        if (validation.invalidUsername(clientUsername)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!sessionAuthService.isSameUser(authorization, clientUsername)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
+        }
+        List<TrainerClientLink> links = linkRepo.findByClientUsername(clientUsername);
+        if (links.isEmpty()) {
+            return ResponseEntity.ok(null);
+        }
+        return ResponseEntity.ok(links.get(0));
+    }
+
     @GetMapping("/clients/{trainerUsername}")
     public ResponseEntity<?> getClients(
             @RequestHeader(value = "Authorization", required = false) String authorization,
