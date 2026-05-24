@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,18 +34,49 @@ public class BunnyCDNService {
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public String uploadVideo(MultipartFile file) throws IOException, InterruptedException {
-        // Sačuvaj original privremeno
+        String fileName = "videos/" + UUID.randomUUID() + ".mp4";
+
+        // 1. Sačuvaj original privremeno
         File inputFile = File.createTempFile("input_", "_" + file.getOriginalFilename());
         file.transferTo(inputFile);
 
-        // Kompresuj sa ffmpeg
-        File outputFile = File.createTempFile("output_", ".mp4");
+        // 2. Uploaduj original odmah — korisnik ne čeka
+        uploadToStorage(inputFile, fileName);
+        System.out.println("✅ Original uploaded: " + cdnUrl + "/" + fileName);
 
+        // 3. Kompresuj i zameni u pozadini
+        compressAndReplace(inputFile, fileName);
+
+        return cdnUrl + "/" + fileName;
+    }
+
+    private void uploadToStorage(File file, String fileName) throws IOException, InterruptedException {
+        String uploadUrl = "https://storage.bunnycdn.com/" + storageZoneName + "/" + fileName;
+        byte[] bytes = Files.readAllBytes(file.toPath());
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(uploadUrl))
+                .header("AccessKey", apiKey)
+                .header("Content-Type", "application/octet-stream")
+                .PUT(HttpRequest.BodyPublishers.ofByteArray(bytes))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 201) {
+            throw new IOException("BunnyCDN upload failed: " + response.statusCode() + " " + response.body());
+        }
+    }
+
+    @Async
+    public void compressAndReplace(File inputFile, String fileName) {
         try {
+            File outputFile = File.createTempFile("output_", ".mp4");
+
             FFmpeg ffmpeg = new FFmpeg("/usr/bin/ffmpeg");
             FFprobe ffprobe = new FFprobe("/usr/bin/ffprobe");
 
-                FFmpegBuilder builder = new FFmpegBuilder()
+            FFmpegBuilder builder = new FFmpegBuilder()
                     .setInput(inputFile.getAbsolutePath())
                     .overrideOutputFiles(true)
                     .addOutput(outputFile.getAbsolutePath())
@@ -59,37 +91,17 @@ public class BunnyCDNService {
             FFmpegExecutor executor = new FFmpegExecutor(ffmpeg, ffprobe);
             executor.createJob(builder).run();
 
+            // Zameni original sa kompresovanim
+            uploadToStorage(outputFile, fileName);
+            System.out.println("✅ Compressed and replaced: " + fileName + " (" + outputFile.length() / 1024 + "KB)");
+
+            inputFile.delete();
+            outputFile.delete();
+
         } catch (Exception e) {
-            System.err.println("❌ FFmpeg compression failed: " + e.getMessage());
-            e.printStackTrace();
-            outputFile = inputFile;
+            System.err.println("❌ Async compression failed: " + e.getMessage());
+            inputFile.delete();
         }
-
-        // Upload na BunnyCDN
-        String fileName = "videos/" + UUID.randomUUID() + ".mp4";
-        String uploadUrl = "https://storage.bunnycdn.com/" + storageZoneName + "/" + fileName;
-
-        byte[] videoBytes = Files.readAllBytes(outputFile.toPath());
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(uploadUrl))
-                .header("AccessKey", apiKey)
-                .header("Content-Type", "application/octet-stream")
-                .PUT(HttpRequest.BodyPublishers.ofByteArray(videoBytes))
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-        // Počisti temp fajlove
-        inputFile.delete();
-        if (!outputFile.equals(inputFile)) outputFile.delete();
-
-        if (response.statusCode() != 201) {
-            throw new IOException("BunnyCDN upload failed: " + response.statusCode() + " " + response.body());
-        }
-
-        System.out.println("✅ Video uploaded to BunnyCDN: " + cdnUrl + "/" + fileName);
-        return cdnUrl + "/" + fileName;
     }
 
     public boolean deleteVideo(String videoUrl) {
