@@ -83,6 +83,7 @@ public class BunnyCDNService {
                     .setFormat("mp4")
                     .setVideoCodec("libx264")
                     .setVideoBitRate(500_000)
+                    .addExtraArgs("-preset", "ultrafast")
                     .addExtraArgs("-vf", "scale=480:-2")
                     .addExtraArgs("-an")
                     .setStrict(FFmpegBuilder.Strict.EXPERIMENTAL)
