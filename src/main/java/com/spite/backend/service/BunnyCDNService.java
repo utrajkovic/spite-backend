@@ -44,16 +44,15 @@ public class BunnyCDNService {
             FFmpeg ffmpeg = new FFmpeg("/usr/bin/ffmpeg");
             FFprobe ffprobe = new FFprobe("/usr/bin/ffprobe");
 
-            FFmpegBuilder builder = new FFmpegBuilder()
+                FFmpegBuilder builder = new FFmpegBuilder()
                     .setInput(inputFile.getAbsolutePath())
                     .overrideOutputFiles(true)
                     .addOutput(outputFile.getAbsolutePath())
                     .setFormat("mp4")
                     .setVideoCodec("libx264")
-                    .setVideoBitRate(800_000)
-                    .setAudioCodec("aac")
-                    .setAudioBitRate(128_000)
-                    .addExtraArgs("-vf", "scale=720:-2")
+                    .setVideoBitRate(500_000)
+                    .addExtraArgs("-vf", "scale=480:-2")
+                    .addExtraArgs("-an")
                     .setStrict(FFmpegBuilder.Strict.EXPERIMENTAL)
                     .done();
 
