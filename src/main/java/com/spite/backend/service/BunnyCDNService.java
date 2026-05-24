@@ -50,10 +50,10 @@ public class BunnyCDNService {
                     .addOutput(outputFile.getAbsolutePath())
                     .setFormat("mp4")
                     .setVideoCodec("libx264")
-                    .setVideoResolution(720, 0) // širina 720px, visina proporcionalna
-                    .setVideoBitRate(800_000)   // 800kbps
+                    .setVideoBitRate(800_000)
                     .setAudioCodec("aac")
-                    .setAudioBitRate(128_000)   // 128kbps audio
+                    .setAudioBitRate(128_000)
+                    .addExtraArgs("-vf", "scale=720:-2")
                     .setStrict(FFmpegBuilder.Strict.EXPERIMENTAL)
                     .done();
 
