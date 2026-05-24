@@ -61,8 +61,8 @@ public class BunnyCDNService {
             executor.createJob(builder).run();
 
         } catch (Exception e) {
-            // Ako ffmpeg ne uspe, uploaduj original
-            System.err.println("FFmpeg compression failed, uploading original: " + e.getMessage());
+            System.err.println("❌ FFmpeg compression failed: " + e.getMessage());
+            e.printStackTrace();
             outputFile = inputFile;
         }
 
