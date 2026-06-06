@@ -19,6 +19,7 @@ public class ScheduledSession {
     private int durationMinutes;
     private String note;
     private String status;         // SCHEDULED / CANCELLED
+    private boolean custom;        // true = ručno ime (nije klijent aplikacije)
     private long createdAt;
 
     public ScheduledSession() {}
@@ -43,6 +44,9 @@ public class ScheduledSession {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public boolean isCustom() { return custom; }
+    public void setCustom(boolean custom) { this.custom = custom; }
 
     public long getCreatedAt() { return createdAt; }
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }

@@ -72,6 +72,7 @@ public class ScheduledSessionController {
         public int durationMinutes;
         public String note;
         public List<String> clientUsernames;
+        public List<String> customNames;
     }
 
     @PostMapping
@@ -87,7 +88,9 @@ public class ScheduledSessionController {
                 || !guard.hasRole(trainerUsername, Role.TRAINER)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Access denied.");
         }
-        if (req == null || req.clientUsernames == null || req.clientUsernames.isEmpty()) {
+        boolean hasClients = req != null && req.clientUsernames != null && !req.clientUsernames.isEmpty();
+        boolean hasCustom = req != null && req.customNames != null && !req.customNames.isEmpty();
+        if (req == null || (!hasClients && !hasCustom)) {
             return ResponseEntity.badRequest().body("No clients selected");
         }
         if (req.startTime <= 0) {
@@ -98,7 +101,7 @@ public class ScheduledSessionController {
         String note = req.note == null ? "" : req.note.trim();
         String whenStr = FMT.format(Instant.ofEpochMilli(req.startTime));
 
-        Set<String> clients = new LinkedHashSet<>(req.clientUsernames);
+        Set<String> clients = hasClients ? new LinkedHashSet<>(req.clientUsernames) : new LinkedHashSet<>();
         List<ScheduledSession> created = new ArrayList<>();
 
         for (String client : clients) {
@@ -111,6 +114,7 @@ public class ScheduledSessionController {
             s.setDurationMinutes(duration);
             s.setNote(note);
             s.setStatus("SCHEDULED");
+            s.setCustom(false);
             s.setCreatedAt(System.currentTimeMillis());
             sessionRepo.save(s);
             created.add(s);
@@ -135,6 +139,27 @@ public class ScheduledSessionController {
                     emailService.send(u.getEmail(), "New training session - " + whenStr, html);
                 }
             });
+        }
+
+        // Custom imena (nisu klijenti aplikacije) — samo zapis, bez notifikacija
+        if (req.customNames != null) {
+            for (String name : req.customNames) {
+                if (name == null) continue;
+                String n = name.trim();
+                if (n.isEmpty() || n.length() > 60) continue;
+
+                ScheduledSession s = new ScheduledSession();
+                s.setTrainerUsername(trainerUsername);
+                s.setClientUsername(n);
+                s.setStartTime(req.startTime);
+                s.setDurationMinutes(duration);
+                s.setNote(note);
+                s.setStatus("SCHEDULED");
+                s.setCustom(true);
+                s.setCreatedAt(System.currentTimeMillis());
+                sessionRepo.save(s);
+                created.add(s);
+            }
         }
 
         return ResponseEntity.ok(created);
