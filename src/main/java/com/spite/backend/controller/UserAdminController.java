@@ -27,6 +27,7 @@ import com.spite.backend.repository.AssignedWorkoutRepository;
 import com.spite.backend.repository.ClientWorkoutLinkRepository;
 import com.spite.backend.repository.CompletedWorkoutRepository;
 import com.spite.backend.repository.ExerciseRepository;
+import com.spite.backend.repository.MealPlanRepository;
 import com.spite.backend.repository.TrainerClientRepository;
 import com.spite.backend.repository.UserRepository;
 import com.spite.backend.repository.WorkoutFeedbackRepository;
@@ -54,6 +55,7 @@ public class UserAdminController {
     private final SessionAuthService sessionAuthService;
     private final InputValidationService validation;
     private final PasswordEncoder passwordEncoder;
+    private final MealPlanRepository mealPlanRepo;
 
     public UserAdminController(
             UserRepository repo,
@@ -68,7 +70,8 @@ public class UserAdminController {
             WorkoutFeedbackRepository workoutFeedbackRepo,
             SessionAuthService sessionAuthService,
             InputValidationService validation,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            MealPlanRepository mealPlanRepo) {
         this.repo = repo;
         this.guard = guard;
         this.exerciseRepo = exerciseRepo;
@@ -82,6 +85,7 @@ public class UserAdminController {
         this.sessionAuthService = sessionAuthService;
         this.validation = validation;
         this.passwordEncoder = passwordEncoder;
+        this.mealPlanRepo = mealPlanRepo;
     }
 
     private boolean isAuthorizedAdmin(String authorization, String adminUsername) {
@@ -249,6 +253,7 @@ public class UserAdminController {
 
         completedWorkoutRepo.deleteByUsername(username);
         workoutFeedbackRepo.deleteByUserId(username);
+        mealPlanRepo.deleteByClientUsername(username);
         sessionAuthService.invalidateByUsername(username);
 
         repo.delete(user);
