@@ -26,8 +26,10 @@ import com.spite.backend.model.Workout;
 import com.spite.backend.repository.AssignedWorkoutRepository;
 import com.spite.backend.repository.ClientWorkoutLinkRepository;
 import com.spite.backend.repository.CompletedWorkoutRepository;
+import com.spite.backend.repository.EmailVerificationTokenRepository;
 import com.spite.backend.repository.ExerciseRepository;
 import com.spite.backend.repository.MealPlanRepository;
+import com.spite.backend.repository.ScheduledSessionRepository;
 import com.spite.backend.repository.TrainerClientRepository;
 import com.spite.backend.repository.UserRepository;
 import com.spite.backend.repository.WorkoutFeedbackRepository;
@@ -56,6 +58,8 @@ public class UserAdminController {
     private final InputValidationService validation;
     private final PasswordEncoder passwordEncoder;
     private final MealPlanRepository mealPlanRepo;
+    private final ScheduledSessionRepository scheduledSessionRepo;
+    private final EmailVerificationTokenRepository emailTokenRepo;
 
     public UserAdminController(
             UserRepository repo,
@@ -71,7 +75,9 @@ public class UserAdminController {
             SessionAuthService sessionAuthService,
             InputValidationService validation,
             PasswordEncoder passwordEncoder,
-            MealPlanRepository mealPlanRepo) {
+            MealPlanRepository mealPlanRepo,
+            ScheduledSessionRepository scheduledSessionRepo,
+            EmailVerificationTokenRepository emailTokenRepo) {
         this.repo = repo;
         this.guard = guard;
         this.exerciseRepo = exerciseRepo;
@@ -86,6 +92,8 @@ public class UserAdminController {
         this.validation = validation;
         this.passwordEncoder = passwordEncoder;
         this.mealPlanRepo = mealPlanRepo;
+        this.scheduledSessionRepo = scheduledSessionRepo;
+        this.emailTokenRepo = emailTokenRepo;
     }
 
     private boolean isAuthorizedAdmin(String authorization, String adminUsername) {
@@ -254,6 +262,9 @@ public class UserAdminController {
         completedWorkoutRepo.deleteByUsername(username);
         workoutFeedbackRepo.deleteByUserId(username);
         mealPlanRepo.deleteByClientUsername(username);
+        scheduledSessionRepo.deleteByClientUsername(username);
+        scheduledSessionRepo.deleteByTrainerUsername(username);
+        emailTokenRepo.deleteByUsername(username);
         sessionAuthService.invalidateByUsername(username);
 
         repo.delete(user);

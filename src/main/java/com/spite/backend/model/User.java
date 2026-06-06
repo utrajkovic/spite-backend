@@ -14,6 +14,8 @@ public class User {
     private String password;
     private Role role = Role.USER;
     private boolean blocked = false;
+    private String email;
+    private boolean emailVerified = false;
 
     public User() {
     }
@@ -62,5 +64,21 @@ public class User {
 
     public void setBlocked(boolean blocked) {
         this.blocked = blocked;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
     }
 }
