@@ -5,8 +5,11 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -63,33 +66,40 @@ public class DailyScheduleEmailJob {
 
             if (list.isEmpty()) continue;
 
-            StringBuilder rows = new StringBuilder();
+            // Grupiši po vremenu (jedan termin = jedan blok, klijenti ispod)
+            Map<Long, List<ScheduledSession>> byTime = new LinkedHashMap<>();
             for (ScheduledSession s : list) {
-                rows.append("<tr>")
-                    .append("<td style=\"padding:8px 12px;border-bottom:1px solid #eee;font-weight:700\">")
-                    .append(TIME_FMT.format(Instant.ofEpochMilli(s.getStartTime())))
-                    .append("</td>")
-                    .append("<td style=\"padding:8px 12px;border-bottom:1px solid #eee\">")
-                    .append(escape(s.getClientUsername()))
-                    .append(s.isCustom() ? " <span style=\"color:#999;font-size:11px\">(custom)</span>" : "")
-                    .append("</td>")
-                    .append("<td style=\"padding:8px 12px;border-bottom:1px solid #eee;color:#888\">")
-                    .append(s.getDurationMinutes()).append(" min")
-                    .append("</td>")
-                    .append("</tr>");
+                byTime.computeIfAbsent(s.getStartTime(), k -> new ArrayList<>()).add(s);
             }
 
+            StringBuilder blocks = new StringBuilder();
+            for (Map.Entry<Long, List<ScheduledSession>> te : byTime.entrySet()) {
+                List<ScheduledSession> group = te.getValue();
+                String time = TIME_FMT.format(Instant.ofEpochMilli(te.getKey()));
+                int dur = group.get(0).getDurationMinutes();
+
+                blocks.append("<div style=\"margin-bottom:18px\">")
+                      .append("<div style=\"font-size:16px;font-weight:700;color:#111;")
+                      .append("border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px\">")
+                      .append(time)
+                      .append(" <span style=\"color:#888;font-weight:400;font-size:13px\">&middot; ")
+                      .append(dur).append(" min</span></div>")
+                      .append("<ul style=\"margin:0;padding-left:20px;color:#333;font-size:14px;line-height:1.9\">");
+                for (ScheduledSession s : group) {
+                    blocks.append("<li>")
+                          .append(escape(s.getClientUsername()))
+                          .append(s.isCustom() ? " <span style=\"color:#999;font-size:11px\">(custom)</span>" : "")
+                          .append("</li>");
+                }
+                blocks.append("</ul></div>");
+            }
+
+            int terminCount = byTime.size();
             String html = "<div style=\"font-family:sans-serif;max-width:520px;margin:auto\">"
-                    + "<h2 style=\"color:#111\">Today's schedule 📅</h2>"
-                    + "<p style=\"color:#555\">" + dateStr + " &mdash; " + list.size() + " session(s)</p>"
-                    + "<table style=\"width:100%;border-collapse:collapse;font-size:14px\">"
-                    + "<tr>"
-                    + "<th style=\"text-align:left;padding:8px 12px;border-bottom:2px solid #111\">Time</th>"
-                    + "<th style=\"text-align:left;padding:8px 12px;border-bottom:2px solid #111\">Client</th>"
-                    + "<th style=\"text-align:left;padding:8px 12px;border-bottom:2px solid #111\">Duration</th>"
-                    + "</tr>"
-                    + rows
-                    + "</table>"
+                    + "<h2 style=\"color:#111;margin-bottom:4px\">Today's schedule 📅</h2>"
+                    + "<p style=\"color:#555;margin-top:0\">" + dateStr + " &mdash; "
+                    + terminCount + " session" + (terminCount == 1 ? "" : "s") + "</p>"
+                    + blocks
                     + "<p style=\"color:#888;font-size:12px;margin-top:20px\">Spite</p></div>";
 
             emailService.send(trainer.getEmail(), "Today's schedule - " + dateStr, html);
