@@ -52,9 +52,19 @@ public class SessionAuthService {
         }
 
         UserSession session = sessionOpt.get();
-        if (session.getExpiresAt() <= System.currentTimeMillis()) {
+        long now = System.currentTimeMillis();
+        if (session.getExpiresAt() <= now) {
             sessionRepo.deleteByToken(session.getToken());
             return Optional.empty();
+        }
+
+        // Sliding renewal: svako korišćenje produžava rok, ali se u bazu upisuje
+        // najviše ~jednom dnevno (da ne pravimo write na svaki zahtev).
+        long ttlMs = sessionTtlHours * 60L * 60L * 1000L;
+        long oneDayMs = 24L * 60L * 60L * 1000L;
+        if (session.getExpiresAt() - now < ttlMs - oneDayMs) {
+            session.setExpiresAt(now + ttlMs);
+            sessionRepo.save(session);
         }
 
         return Optional.of(session);
