@@ -3,12 +3,10 @@ package com.spite.backend.service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -22,6 +20,7 @@ import com.spite.backend.repository.UserRepository;
 public class DailyScheduleEmailJob {
 
     private static final ZoneId ZONE = ZoneId.of("Europe/Belgrade");
+    private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm").withZone(ZONE);
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy.").withZone(ZONE);
 
@@ -37,34 +36,32 @@ public class DailyScheduleEmailJob {
         this.emailService = emailService;
     }
 
-    // Svaki dan u 00:00 (Europe/Belgrade) — trener dobije listu termina za taj dan
-    @Scheduled(cron = "0 0 0 * * *", zone = "Europe/Belgrade")
-    public void sendDailySchedules() {
+    // Radi svakog minuta; šalje trenerima čije izabrano vreme se poklapa sa sada
+    @Scheduled(cron = "0 * * * * *", zone = "Europe/Belgrade")
+    public void tick() {
         if (!emailService.isConfigured()) return;
+
+        String now = HHMM.format(ZonedDateTime.now(ZONE));
+        List<User> trainers = userRepo.findByDailyReminderEnabledTrueAndDailyReminderTime(now);
+        if (trainers.isEmpty()) return;
 
         LocalDate today = LocalDate.now(ZONE);
         long start = today.atStartOfDay(ZONE).toInstant().toEpochMilli();
         long end = today.plusDays(1).atStartOfDay(ZONE).toInstant().toEpochMilli();
-
-        List<ScheduledSession> todays = sessionRepo.findByStartTimeBetween(start, end);
-        if (todays.isEmpty()) return;
-
-        Map<String, List<ScheduledSession>> byTrainer = new LinkedHashMap<>();
-        for (ScheduledSession s : todays) {
-            byTrainer.computeIfAbsent(s.getTrainerUsername(), k -> new ArrayList<>()).add(s);
-        }
-
         String dateStr = DATE_FMT.format(Instant.ofEpochMilli(start));
 
-        for (Map.Entry<String, List<ScheduledSession>> e : byTrainer.entrySet()) {
-            User trainer = userRepo.findByUsername(e.getKey()).orElse(null);
-            if (trainer == null || !trainer.isEmailVerified()
-                    || trainer.getEmail() == null || trainer.getEmail().isBlank()) {
+        for (User trainer : trainers) {
+            if (!trainer.isEmailVerified() || trainer.getEmail() == null || trainer.getEmail().isBlank()) {
                 continue;
             }
 
-            List<ScheduledSession> list = e.getValue();
-            list.sort(Comparator.comparingLong(ScheduledSession::getStartTime));
+            List<ScheduledSession> list = sessionRepo.findByTrainerUsername(trainer.getUsername())
+                    .stream()
+                    .filter(s -> s.getStartTime() >= start && s.getStartTime() < end)
+                    .sorted(Comparator.comparingLong(ScheduledSession::getStartTime))
+                    .toList();
+
+            if (list.isEmpty()) continue;
 
             StringBuilder rows = new StringBuilder();
             for (ScheduledSession s : list) {

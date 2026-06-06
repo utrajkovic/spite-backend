@@ -240,6 +240,35 @@ public class UserController {
         return ResponseEntity.ok("Verification email sent");
     }
 
+    // Podešavanje dnevnog podsetnika (toggle + vreme)
+    @PutMapping("/reminder")
+    public ResponseEntity<?> setReminder(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam String username,
+            @RequestParam boolean enabled,
+            @RequestParam(required = false) String time) {
+
+        if (validation.invalidUsername(username)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!sessionAuthService.isSameUser(authorization, username)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
+        Optional<User> opt = repo.findByUsername(username);
+        if (opt.isEmpty()) {
+            return ResponseEntity.badRequest().body("User not found");
+        }
+
+        User user = opt.get();
+        user.setDailyReminderEnabled(enabled);
+        if (time != null && time.matches("^\\d{2}:\\d{2}$")) {
+            user.setDailyReminderTime(time);
+        }
+        repo.save(user);
+        return ResponseEntity.ok("Reminder settings saved");
+    }
+
     // Verifikacioni link iz mejla (otvara se u browseru) -> vraća malu HTML stranicu
     @GetMapping(value = "/verify-email", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> verifyEmail(@RequestParam String token) {

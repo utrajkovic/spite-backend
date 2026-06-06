@@ -16,6 +16,8 @@ public class User {
     private boolean blocked = false;
     private String email;
     private boolean emailVerified = false;
+    private boolean dailyReminderEnabled = true;
+    private String dailyReminderTime = "07:00";
 
     public User() {
     }
@@ -80,5 +82,21 @@ public class User {
 
     public void setEmailVerified(boolean emailVerified) {
         this.emailVerified = emailVerified;
+    }
+
+    public boolean isDailyReminderEnabled() {
+        return dailyReminderEnabled;
+    }
+
+    public void setDailyReminderEnabled(boolean dailyReminderEnabled) {
+        this.dailyReminderEnabled = dailyReminderEnabled;
+    }
+
+    public String getDailyReminderTime() {
+        return dailyReminderTime;
+    }
+
+    public void setDailyReminderTime(String dailyReminderTime) {
+        this.dailyReminderTime = dailyReminderTime;
     }
 }
