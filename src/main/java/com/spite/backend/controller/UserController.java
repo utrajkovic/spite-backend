@@ -9,17 +9,23 @@ import com.spite.backend.model.UserSession;
 import com.spite.backend.repository.EmailVerificationTokenRepository;
 import com.spite.backend.repository.FcmTokenRepository;
 import com.spite.backend.repository.UserRepository;
+import com.spite.backend.service.CloudinaryService;
 import com.spite.backend.service.EmailService;
 import com.spite.backend.service.InputValidationService;
 import com.spite.backend.service.LoginRateLimitService;
 import com.spite.backend.service.SessionAuthService;
+import com.cloudinary.Transformation;
+import com.cloudinary.utils.ObjectUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +43,7 @@ public class UserController {
     private final InputValidationService validation;
     private final EmailService emailService;
     private final EmailVerificationTokenRepository tokenRepo;
+    private final CloudinaryService cloudinaryService;
 
     @Value("${app.public-url:https://spite-backend.fly.dev}")
     private String publicUrl;
@@ -48,7 +55,8 @@ public class UserController {
             LoginRateLimitService loginRateLimitService,
             InputValidationService validation,
             EmailService emailService,
-            EmailVerificationTokenRepository tokenRepo) {
+            EmailVerificationTokenRepository tokenRepo,
+            CloudinaryService cloudinaryService) {
         this.repo = repo;
         this.fcmTokenRepo = fcmTokenRepo;
         this.passwordEncoder = passwordEncoder;
@@ -57,6 +65,7 @@ public class UserController {
         this.validation = validation;
         this.emailService = emailService;
         this.tokenRepo = tokenRepo;
+        this.cloudinaryService = cloudinaryService;
     }
 
     @PostMapping("/register")
@@ -267,6 +276,88 @@ public class UserController {
         }
         repo.save(user);
         return ResponseEntity.ok("Reminder settings saved");
+    }
+
+    // Upload profilne slike (slika je već isečena na klijentu)
+    @PostMapping("/avatar")
+    public ResponseEntity<?> uploadAvatar(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam String username,
+            @RequestParam("image") MultipartFile image) {
+
+        if (validation.invalidUsername(username)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!sessionAuthService.isSameUser(authorization, username)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+        if (image == null || image.isEmpty()) {
+            return ResponseEntity.badRequest().body("No image");
+        }
+
+        Optional<User> opt = repo.findByUsername(username);
+        if (opt.isEmpty()) {
+            return ResponseEntity.badRequest().body("User not found");
+        }
+
+        try {
+            String url = cloudinaryService.upload(image, ObjectUtils.asMap(
+                    "folder", "spite/avatars",
+                    "resource_type", "image",
+                    "transformation", new Transformation()
+                            .width(400).height(400).crop("fill").gravity("center")
+                            .quality("auto").fetchFormat("auto")));
+
+            User user = opt.get();
+            user.setAvatarUrl(url);
+            repo.save(user);
+            return ResponseEntity.ok(url);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Upload failed");
+        }
+    }
+
+    @DeleteMapping("/avatar")
+    public ResponseEntity<?> deleteAvatar(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam String username) {
+
+        if (validation.invalidUsername(username)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!sessionAuthService.isSameUser(authorization, username)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
+        Optional<User> opt = repo.findByUsername(username);
+        if (opt.isEmpty()) {
+            return ResponseEntity.badRequest().body("User not found");
+        }
+        User user = opt.get();
+        user.setAvatarUrl(null);
+        repo.save(user);
+        return ResponseEntity.ok("Avatar removed");
+    }
+
+    // Bulk dohvat avatara po korisničkim imenima (za liste/chat)
+    @PostMapping("/avatars")
+    public ResponseEntity<?> getAvatars(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody List<String> usernames) {
+
+        if (sessionAuthService.getUsername(authorization).isEmpty()) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
+        Map<String, String> result = new HashMap<>();
+        if (usernames == null || usernames.isEmpty()) {
+            return ResponseEntity.ok(result);
+        }
+        List<String> capped = usernames.size() > 200 ? usernames.subList(0, 200) : usernames;
+        for (User u : repo.findByUsernameIn(capped)) {
+            result.put(u.getUsername(), u.getAvatarUrl());
+        }
+        return ResponseEntity.ok(result);
     }
 
     // Verifikacioni link iz mejla (otvara se u browseru) -> vraća malu HTML stranicu

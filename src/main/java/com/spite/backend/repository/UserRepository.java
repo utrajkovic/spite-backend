@@ -9,4 +9,5 @@ public interface UserRepository extends MongoRepository<User, String> {
     Optional<User> findByUsername(String username);
     boolean existsByUsername(String username);
     List<User> findByDailyReminderEnabledTrueAndDailyReminderTime(String dailyReminderTime);
+    List<User> findByUsernameIn(List<String> usernames);
 }

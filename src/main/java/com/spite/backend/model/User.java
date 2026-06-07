@@ -18,6 +18,7 @@ public class User {
     private boolean emailVerified = false;
     private boolean dailyReminderEnabled = true;
     private String dailyReminderTime = "07:00";
+    private String avatarUrl;
 
     public User() {
     }
@@ -98,5 +99,13 @@ public class User {
 
     public void setDailyReminderTime(String dailyReminderTime) {
         this.dailyReminderTime = dailyReminderTime;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
 }
