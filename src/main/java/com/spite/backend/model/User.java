@@ -1,5 +1,8 @@
 package com.spite.backend.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -19,6 +22,12 @@ public class User {
     private boolean dailyReminderEnabled = true;
     private String dailyReminderTime = "07:00";
     private String avatarUrl;
+
+    // Korisnički (CLIENT) podsetnik za trening
+    private boolean clientReminderEnabled = false;
+    private String clientReminderMode = "SESSIONS"; // SESSIONS | CUSTOM
+    private String clientReminderTime = "07:00";    // vreme slanja za SESSIONS režim
+    private List<WorkoutReminder> customReminders = new ArrayList<>();
 
     public User() {
     }
@@ -107,5 +116,37 @@ public class User {
 
     public void setAvatarUrl(String avatarUrl) {
         this.avatarUrl = avatarUrl;
+    }
+
+    public boolean isClientReminderEnabled() {
+        return clientReminderEnabled;
+    }
+
+    public void setClientReminderEnabled(boolean clientReminderEnabled) {
+        this.clientReminderEnabled = clientReminderEnabled;
+    }
+
+    public String getClientReminderMode() {
+        return clientReminderMode;
+    }
+
+    public void setClientReminderMode(String clientReminderMode) {
+        this.clientReminderMode = clientReminderMode;
+    }
+
+    public String getClientReminderTime() {
+        return clientReminderTime;
+    }
+
+    public void setClientReminderTime(String clientReminderTime) {
+        this.clientReminderTime = clientReminderTime;
+    }
+
+    public List<WorkoutReminder> getCustomReminders() {
+        return customReminders;
+    }
+
+    public void setCustomReminders(List<WorkoutReminder> customReminders) {
+        this.customReminders = customReminders;
     }
 }

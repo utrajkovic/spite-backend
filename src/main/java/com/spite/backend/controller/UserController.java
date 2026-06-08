@@ -6,6 +6,7 @@ import com.spite.backend.model.FcmToken;
 import com.spite.backend.model.Role;
 import com.spite.backend.model.User;
 import com.spite.backend.model.UserSession;
+import com.spite.backend.model.WorkoutReminder;
 import com.spite.backend.repository.EmailVerificationTokenRepository;
 import com.spite.backend.repository.FcmTokenRepository;
 import com.spite.backend.repository.UserRepository;
@@ -276,6 +277,65 @@ public class UserController {
         }
         repo.save(user);
         return ResponseEntity.ok("Reminder settings saved");
+    }
+
+    // Telo zahteva za korisnički (CLIENT) podsetnik
+    public static class ClientReminderRequest {
+        public boolean enabled;
+        public String mode;                       // SESSIONS | CUSTOM
+        public String time;                       // HH:mm (SESSIONS režim)
+        public List<WorkoutReminder> customReminders;
+    }
+
+    // Podešavanje korisničkog podsetnika za trening (SESSIONS ili CUSTOM)
+    @PutMapping("/client-reminder")
+    public ResponseEntity<?> setClientReminder(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam String username,
+            @RequestBody ClientReminderRequest body) {
+
+        if (validation.invalidUsername(username)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!sessionAuthService.isSameUser(authorization, username)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
+        Optional<User> opt = repo.findByUsername(username);
+        if (opt.isEmpty()) {
+            return ResponseEntity.badRequest().body("User not found");
+        }
+
+        User user = opt.get();
+        user.setClientReminderEnabled(body.enabled);
+
+        if ("CUSTOM".equals(body.mode) || "SESSIONS".equals(body.mode)) {
+            user.setClientReminderMode(body.mode);
+        }
+        if (body.time != null && body.time.matches("^\\d{2}:\\d{2}$")) {
+            user.setClientReminderTime(body.time);
+        }
+
+        // Validiraj i normalizuj custom stavke (preskoči nevalidne)
+        List<WorkoutReminder> clean = new java.util.ArrayList<>();
+        if (body.customReminders != null) {
+            for (WorkoutReminder r : body.customReminders) {
+                if (r == null || r.getTime() == null || !r.getTime().matches("^\\d{2}:\\d{2}$")) continue;
+                if (r.getDays() == null || r.getDays().isEmpty()) continue;
+                List<Integer> days = new java.util.ArrayList<>();
+                for (Integer d : r.getDays()) {
+                    if (d != null && d >= 1 && d <= 7 && !days.contains(d)) days.add(d);
+                }
+                if (days.isEmpty()) continue;
+                r.setDays(days);
+                if (r.getNote() == null) r.setNote("");
+                clean.add(r);
+            }
+        }
+        user.setCustomReminders(clean);
+
+        repo.save(user);
+        return ResponseEntity.ok("Client reminder settings saved");
     }
 
     // Upload profilne slike (slika je već isečena na klijentu)
