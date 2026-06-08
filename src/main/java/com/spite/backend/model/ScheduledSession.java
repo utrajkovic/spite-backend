@@ -20,6 +20,8 @@ public class ScheduledSession {
     private String note;
     private String status;         // SCHEDULED / CANCELLED
     private boolean custom;        // true = ručno ime (nije klijent aplikacije)
+    private String offlineClientId; // ako je termin za sačuvanog offline klijenta
+    private String clientEmail;     // mejl za offline klijenta (slanje obaveštenja)
     private long createdAt;
 
     public ScheduledSession() {}
@@ -47,6 +49,12 @@ public class ScheduledSession {
 
     public boolean isCustom() { return custom; }
     public void setCustom(boolean custom) { this.custom = custom; }
+
+    public String getOfflineClientId() { return offlineClientId; }
+    public void setOfflineClientId(String offlineClientId) { this.offlineClientId = offlineClientId; }
+
+    public String getClientEmail() { return clientEmail; }
+    public void setClientEmail(String clientEmail) { this.clientEmail = clientEmail; }
 
     public long getCreatedAt() { return createdAt; }
     public void setCreatedAt(long createdAt) { this.createdAt = createdAt; }

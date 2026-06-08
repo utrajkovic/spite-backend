@@ -23,9 +23,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.spite.backend.model.OfflineClient;
 import com.spite.backend.model.Role;
 import com.spite.backend.model.ScheduledSession;
 import com.spite.backend.model.User;
+import com.spite.backend.repository.OfflineClientRepository;
 import com.spite.backend.repository.ScheduledSessionRepository;
 import com.spite.backend.repository.UserRepository;
 import com.spite.backend.service.EmailService;
@@ -41,6 +43,7 @@ public class ScheduledSessionController {
 
     private final ScheduledSessionRepository sessionRepo;
     private final UserRepository userRepo;
+    private final OfflineClientRepository offlineClientRepo;
     private final SessionAuthService sessionAuthService;
     private final RoleGuardService guard;
     private final InputValidationService validation;
@@ -53,6 +56,7 @@ public class ScheduledSessionController {
     public ScheduledSessionController(
             ScheduledSessionRepository sessionRepo,
             UserRepository userRepo,
+            OfflineClientRepository offlineClientRepo,
             SessionAuthService sessionAuthService,
             RoleGuardService guard,
             InputValidationService validation,
@@ -60,6 +64,7 @@ public class ScheduledSessionController {
             EmailService emailService) {
         this.sessionRepo = sessionRepo;
         this.userRepo = userRepo;
+        this.offlineClientRepo = offlineClientRepo;
         this.sessionAuthService = sessionAuthService;
         this.guard = guard;
         this.validation = validation;
@@ -73,6 +78,7 @@ public class ScheduledSessionController {
         public String note;
         public List<String> clientUsernames;
         public List<String> customNames;
+        public List<String> offlineClientIds;
     }
 
     @PostMapping
@@ -90,7 +96,8 @@ public class ScheduledSessionController {
         }
         boolean hasClients = req != null && req.clientUsernames != null && !req.clientUsernames.isEmpty();
         boolean hasCustom = req != null && req.customNames != null && !req.customNames.isEmpty();
-        if (req == null || (!hasClients && !hasCustom)) {
+        boolean hasOffline = req != null && req.offlineClientIds != null && !req.offlineClientIds.isEmpty();
+        if (req == null || (!hasClients && !hasCustom && !hasOffline)) {
             return ResponseEntity.badRequest().body("No clients selected");
         }
         if (req.startTime <= 0) {
@@ -159,6 +166,41 @@ public class ScheduledSessionController {
                 s.setCreatedAt(System.currentTimeMillis());
                 sessionRepo.save(s);
                 created.add(s);
+            }
+        }
+
+        // Offline klijenti (sačuvani profili) — šalji mejl na njihovu adresu ako postoji
+        if (req.offlineClientIds != null) {
+            for (String ocId : req.offlineClientIds) {
+                if (ocId == null) continue;
+                OfflineClient oc = offlineClientRepo.findById(ocId).orElse(null);
+                if (oc == null || !trainerUsername.equals(oc.getTrainerUsername())) continue;
+
+                ScheduledSession s = new ScheduledSession();
+                s.setTrainerUsername(trainerUsername);
+                s.setClientUsername(oc.getName());
+                s.setStartTime(req.startTime);
+                s.setDurationMinutes(duration);
+                s.setNote(note);
+                s.setStatus("SCHEDULED");
+                s.setCustom(true);
+                s.setOfflineClientId(oc.getId());
+                s.setClientEmail(oc.getEmail());
+                s.setCreatedAt(System.currentTimeMillis());
+                sessionRepo.save(s);
+                created.add(s);
+
+                if (EmailService.isValidEmail(oc.getEmail())) {
+                    String html = "<div style=\"font-family:sans-serif;max-width:480px;margin:auto\">"
+                            + "<h2 style=\"color:#111\">New training session 📅</h2>"
+                            + "<p>Hi <strong>" + oc.getName() + "</strong>,</p>"
+                            + "<p>Your trainer <strong>" + trainerUsername + "</strong> scheduled a session for you:</p>"
+                            + "<p style=\"font-size:18px;font-weight:700\">" + whenStr + "</p>"
+                            + "<p>Duration: " + duration + " min</p>"
+                            + (note.isEmpty() ? "" : "<p>Note: " + note + "</p>")
+                            + "<p style=\"color:#888;font-size:12px\">Spite</p></div>";
+                    emailService.send(oc.getEmail(), "New training session - " + whenStr, html);
+                }
             }
         }
 
@@ -232,17 +274,28 @@ public class ScheduledSessionController {
                 s.getTrainerUsername() + " cancelled the session on " + whenStr,
                 "session", s.getTrainerUsername());
 
-        userRepo.findByUsername(client).ifPresent(u -> {
-            if (u.isEmailVerified() && u.getEmail() != null && !u.getEmail().isBlank()) {
-                String html = "<div style=\"font-family:sans-serif;max-width:480px;margin:auto\">"
-                        + "<h2 style=\"color:#111\">Session cancelled</h2>"
-                        + "<p>Hi <strong>" + client + "</strong>,</p>"
-                        + "<p>Your trainer <strong>" + s.getTrainerUsername()
-                        + "</strong> cancelled the session scheduled for <strong>" + whenStr + "</strong>.</p>"
-                        + "<p style=\"color:#888;font-size:12px\">Spite</p></div>";
-                emailService.send(u.getEmail(), "Session cancelled - " + whenStr, html);
-            }
-        });
+        if (s.getOfflineClientId() != null && EmailService.isValidEmail(s.getClientEmail())) {
+            // Offline klijent — mejl ide na adresu sačuvanu uz termin
+            String html = "<div style=\"font-family:sans-serif;max-width:480px;margin:auto\">"
+                    + "<h2 style=\"color:#111\">Session cancelled</h2>"
+                    + "<p>Hi <strong>" + client + "</strong>,</p>"
+                    + "<p>Your trainer <strong>" + s.getTrainerUsername()
+                    + "</strong> cancelled the session scheduled for <strong>" + whenStr + "</strong>.</p>"
+                    + "<p style=\"color:#888;font-size:12px\">Spite</p></div>";
+            emailService.send(s.getClientEmail(), "Session cancelled - " + whenStr, html);
+        } else {
+            userRepo.findByUsername(client).ifPresent(u -> {
+                if (u.isEmailVerified() && u.getEmail() != null && !u.getEmail().isBlank()) {
+                    String html = "<div style=\"font-family:sans-serif;max-width:480px;margin:auto\">"
+                            + "<h2 style=\"color:#111\">Session cancelled</h2>"
+                            + "<p>Hi <strong>" + client + "</strong>,</p>"
+                            + "<p>Your trainer <strong>" + s.getTrainerUsername()
+                            + "</strong> cancelled the session scheduled for <strong>" + whenStr + "</strong>.</p>"
+                            + "<p style=\"color:#888;font-size:12px\">Spite</p></div>";
+                    emailService.send(u.getEmail(), "Session cancelled - " + whenStr, html);
+                }
+            });
+        }
 
         return ResponseEntity.ok("Session cancelled");
     }
