@@ -3,6 +3,8 @@ package com.spite.backend.model;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -14,6 +16,8 @@ public class User {
     private String id;
     @Indexed(unique = true)
     private String username;
+    // Prima se iz request body-ja (login/register) ali se NIKAD ne serijalizuje u odgovor
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
     private Role role = Role.USER;
     private boolean blocked = false;

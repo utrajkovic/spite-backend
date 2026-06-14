@@ -161,7 +161,28 @@ public class UserController {
     }
 
     @GetMapping("/username/{username}")
-    public ResponseEntity<?> getUserByUsername(@PathVariable String username) {
+    public ResponseEntity<?> getUserByUsername(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String username) {
+
+        if (validation.invalidUsername(username)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+
+        String actor = sessionAuthService.getUsername(authorization).orElse(null);
+        if (actor == null) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
+        // Sebi sme svako; tuđe podatke sme samo trener (čita svoje klijente)
+        boolean isSelf = actor.equals(username);
+        boolean isTrainer = repo.findByUsername(actor)
+                .map(a -> a.getRole() == Role.TRAINER)
+                .orElse(false);
+        if (!isSelf && !isTrainer) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+
         Optional<User> user = repo.findByUsername(username);
         if (user.isPresent()) {
             return ResponseEntity.ok(user.get());
