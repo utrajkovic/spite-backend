@@ -191,6 +191,31 @@ public class UserController {
         }
     }
 
+    // Pretraga korisnika za autocomplete (vraća samo username + role, bez osetljivih podataka)
+    @GetMapping("/search")
+    public ResponseEntity<?> searchUsers(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam String q) {
+
+        String actor = sessionAuthService.getUsername(authorization).orElse(null);
+        if (actor == null) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+        String query = q == null ? "" : q.trim();
+        if (query.length() < 2) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        List<Map<String, String>> results = repo
+                .findTop8ByUsernameContainingIgnoreCaseOrderByUsernameAsc(query)
+                .stream()
+                .filter(u -> !u.getUsername().equalsIgnoreCase(actor) && !u.isBlocked())
+                .map(u -> Map.of("username", u.getUsername(), "role", u.getRole().name()))
+                .toList();
+
+        return ResponseEntity.ok(results);
+    }
+
     @GetMapping("/exists/{username}")
     public ResponseEntity<?> checkUserExists(@PathVariable String username) {
         boolean exists = repo.existsByUsername(username);
