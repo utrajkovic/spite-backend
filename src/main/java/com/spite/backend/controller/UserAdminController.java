@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.spite.backend.model.AssignedWorkout;
 import com.spite.backend.model.ClientWorkoutLink;
 import com.spite.backend.model.Exercise;
+import com.spite.backend.model.OfflineClient;
 import com.spite.backend.model.Role;
 import com.spite.backend.model.TrainerClientLink;
 import com.spite.backend.model.User;
@@ -26,12 +27,17 @@ import com.spite.backend.model.Workout;
 import com.spite.backend.repository.AssignedWorkoutRepository;
 import com.spite.backend.repository.ClientWorkoutLinkRepository;
 import com.spite.backend.repository.CompletedWorkoutRepository;
+import com.spite.backend.repository.DailyCheckInRepository;
 import com.spite.backend.repository.EmailVerificationTokenRepository;
 import com.spite.backend.repository.ExerciseRepository;
+import com.spite.backend.repository.FcmTokenRepository;
 import com.spite.backend.repository.MealPlanRepository;
+import com.spite.backend.repository.OfflineClientLogRepository;
+import com.spite.backend.repository.OfflineClientRepository;
 import com.spite.backend.repository.ScheduledSessionRepository;
 import com.spite.backend.repository.TrainerClientRepository;
 import com.spite.backend.repository.UserRepository;
+import com.spite.backend.repository.VideoCommentRepository;
 import com.spite.backend.repository.WorkoutFeedbackRepository;
 import com.spite.backend.repository.WorkoutRepository;
 import com.spite.backend.service.CloudinaryService;
@@ -60,6 +66,11 @@ public class UserAdminController {
     private final MealPlanRepository mealPlanRepo;
     private final ScheduledSessionRepository scheduledSessionRepo;
     private final EmailVerificationTokenRepository emailTokenRepo;
+    private final FcmTokenRepository fcmTokenRepo;
+    private final DailyCheckInRepository checkInRepo;
+    private final VideoCommentRepository videoCommentRepo;
+    private final OfflineClientRepository offlineClientRepo;
+    private final OfflineClientLogRepository offlineClientLogRepo;
 
     public UserAdminController(
             UserRepository repo,
@@ -77,7 +88,12 @@ public class UserAdminController {
             PasswordEncoder passwordEncoder,
             MealPlanRepository mealPlanRepo,
             ScheduledSessionRepository scheduledSessionRepo,
-            EmailVerificationTokenRepository emailTokenRepo) {
+            EmailVerificationTokenRepository emailTokenRepo,
+            FcmTokenRepository fcmTokenRepo,
+            DailyCheckInRepository checkInRepo,
+            VideoCommentRepository videoCommentRepo,
+            OfflineClientRepository offlineClientRepo,
+            OfflineClientLogRepository offlineClientLogRepo) {
         this.repo = repo;
         this.guard = guard;
         this.exerciseRepo = exerciseRepo;
@@ -94,6 +110,11 @@ public class UserAdminController {
         this.mealPlanRepo = mealPlanRepo;
         this.scheduledSessionRepo = scheduledSessionRepo;
         this.emailTokenRepo = emailTokenRepo;
+        this.fcmTokenRepo = fcmTokenRepo;
+        this.checkInRepo = checkInRepo;
+        this.videoCommentRepo = videoCommentRepo;
+        this.offlineClientRepo = offlineClientRepo;
+        this.offlineClientLogRepo = offlineClientLogRepo;
     }
 
     private boolean isAuthorizedAdmin(String authorization, String adminUsername) {
@@ -265,6 +286,20 @@ public class UserAdminController {
         scheduledSessionRepo.deleteByClientUsername(username);
         scheduledSessionRepo.deleteByTrainerUsername(username);
         emailTokenRepo.deleteByUsername(username);
+
+        // Dodatni tragovi: push token, check-in-ovi, video komentari
+        fcmTokenRepo.deleteByUsername(username);
+        checkInRepo.deleteByUsername(username);
+        videoCommentRepo.deleteByClientUsername(username);
+        videoCommentRepo.deleteByTrainerUsername(username);
+
+        // Offline klijenti (ako je obrisani korisnik trener) + njihovi dnevnici
+        List<OfflineClient> offlineClients = offlineClientRepo.findByTrainerUsername(username);
+        for (OfflineClient oc : offlineClients) {
+            offlineClientLogRepo.deleteByOfflineClientId(oc.getId());
+        }
+        offlineClientRepo.deleteAll(offlineClients);
+
         sessionAuthService.invalidateByUsername(username);
 
         repo.delete(user);

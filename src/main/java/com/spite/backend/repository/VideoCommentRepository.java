@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface VideoCommentRepository extends MongoRepository<VideoComment, String> {
     List<VideoComment> findByFeedbackIdOrderByTimestampSecAscCreatedAtAsc(String feedbackId);
+    void deleteByClientUsername(String clientUsername);
+    void deleteByTrainerUsername(String trainerUsername);
 }

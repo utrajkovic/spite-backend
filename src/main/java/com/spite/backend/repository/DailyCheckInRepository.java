@@ -10,4 +10,5 @@ public interface DailyCheckInRepository extends MongoRepository<DailyCheckIn, St
     List<DailyCheckIn> findByTrainerUsernameOrderByCreatedAtDesc(String trainerUsername);
     List<DailyCheckIn> findByTrainerUsernameAndReviewedOrderByCreatedAtDesc(String trainerUsername, boolean reviewed);
     boolean existsByUsernameAndDateKey(String username, String dateKey);
+    void deleteByUsername(String username);
 }
