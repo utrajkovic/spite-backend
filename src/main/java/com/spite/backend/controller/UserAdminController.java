@@ -40,6 +40,7 @@ import com.spite.backend.repository.UserRepository;
 import com.spite.backend.repository.VideoCommentRepository;
 import com.spite.backend.repository.WorkoutFeedbackRepository;
 import com.spite.backend.repository.WorkoutRepository;
+import com.spite.backend.service.BunnyCDNService;
 import com.spite.backend.service.CloudinaryService;
 import com.spite.backend.service.InputValidationService;
 import com.spite.backend.service.RoleGuardService;
@@ -55,6 +56,7 @@ public class UserAdminController {
     private final ExerciseRepository exerciseRepo;
     private final WorkoutRepository workoutRepo;
     private final CloudinaryService cloudinaryService;
+    private final BunnyCDNService bunnyCDNService;
     private final TrainerClientRepository trainerClientRepo;
     private final ClientWorkoutLinkRepository clientWorkoutLinkRepo;
     private final AssignedWorkoutRepository assignedWorkoutRepo;
@@ -78,6 +80,7 @@ public class UserAdminController {
             ExerciseRepository exerciseRepo,
             WorkoutRepository workoutRepo,
             CloudinaryService cloudinaryService,
+            BunnyCDNService bunnyCDNService,
             TrainerClientRepository trainerClientRepo,
             ClientWorkoutLinkRepository clientWorkoutLinkRepo,
             AssignedWorkoutRepository assignedWorkoutRepo,
@@ -99,6 +102,7 @@ public class UserAdminController {
         this.exerciseRepo = exerciseRepo;
         this.workoutRepo = workoutRepo;
         this.cloudinaryService = cloudinaryService;
+        this.bunnyCDNService = bunnyCDNService;
         this.trainerClientRepo = trainerClientRepo;
         this.clientWorkoutLinkRepo = clientWorkoutLinkRepo;
         this.assignedWorkoutRepo = assignedWorkoutRepo;
@@ -248,6 +252,8 @@ public class UserAdminController {
         List<Exercise> exercises = exerciseRepo.findByUserId(userId);
         for (Exercise ex : exercises) {
             if (ex.getVideoUrl() != null && !ex.getVideoUrl().isEmpty()) {
+                // Video može biti na BunnyCDN (novo) ili Cloudinary (staro) — pozovi oba
+                bunnyCDNService.deleteVideo(ex.getVideoUrl());
                 cloudinaryService.deleteVideo(ex.getVideoUrl());
             }
         }
