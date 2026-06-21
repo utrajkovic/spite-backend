@@ -14,7 +14,9 @@ public class LoginResponse {
         LoginResponse response = new LoginResponse();
         response.setToken(session.getToken());
         response.setExpiresAt(session.getExpiresAt());
-        response.setUser(new UserPayload(user.getId(), user.getUsername(), user.getRole(), user.isBlocked()));
+        UserPayload payload = new UserPayload(user.getId(), user.getUsername(), user.getRole(), user.isBlocked());
+        payload.setFullName(user.getFullName());
+        response.setUser(payload);
         return response;
     }
 
@@ -45,6 +47,7 @@ public class LoginResponse {
     public static class UserPayload {
         private String id;
         private String username;
+        private String fullName;
         private Role role;
         private boolean blocked;
 
@@ -56,6 +59,14 @@ public class LoginResponse {
             this.username = username;
             this.role = role;
             this.blocked = blocked;
+        }
+
+        public String getFullName() {
+            return fullName;
+        }
+
+        public void setFullName(String fullName) {
+            this.fullName = fullName;
         }
 
         public String getId() {

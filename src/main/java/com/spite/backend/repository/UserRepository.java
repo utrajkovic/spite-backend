@@ -12,4 +12,5 @@ public interface UserRepository extends MongoRepository<User, String> {
     List<User> findByClientReminderEnabledTrue();
     List<User> findByUsernameIn(List<String> usernames);
     List<User> findTop8ByUsernameContainingIgnoreCaseOrderByUsernameAsc(String username);
+    List<User> findTop8ByFullNameContainingIgnoreCaseOrderByFullNameAsc(String fullName);
 }

@@ -91,6 +91,9 @@ public class UserController {
         user.setEmail(email == null || email.isEmpty() ? null : email);
         user.setEmailVerified(false);
 
+        String fn = user.getFullName() == null ? null : user.getFullName().trim();
+        user.setFullName(fn == null || fn.isEmpty() ? null : (fn.length() > 60 ? fn.substring(0, 60) : fn));
+
         String hashed = passwordEncoder.encode(user.getPassword());
         user.setPassword(hashed);
 
@@ -206,13 +209,20 @@ public class UserController {
             return ResponseEntity.ok(List.of());
         }
 
-        List<Map<String, String>> results = repo
-                .findTop8ByUsernameContainingIgnoreCaseOrderByUsernameAsc(query)
-                .stream()
-                .filter(u -> !u.getUsername().equalsIgnoreCase(actor) && !u.isBlocked())
-                .map(u -> Map.of("username", u.getUsername(), "role", u.getRole().name()))
-                .toList();
+        java.util.LinkedHashMap<String, Map<String, String>> byUser = new java.util.LinkedHashMap<>();
+        java.util.function.Consumer<User> add = u -> {
+            if (u.getUsername().equalsIgnoreCase(actor) || u.isBlocked()) return;
+            if (byUser.containsKey(u.getUsername())) return;
+            Map<String, String> m = new HashMap<>();
+            m.put("username", u.getUsername());
+            m.put("role", u.getRole().name());
+            m.put("fullName", u.getFullName() == null ? "" : u.getFullName());
+            byUser.put(u.getUsername(), m);
+        };
+        repo.findTop8ByUsernameContainingIgnoreCaseOrderByUsernameAsc(query).forEach(add);
+        repo.findTop8ByFullNameContainingIgnoreCaseOrderByFullNameAsc(query).forEach(add);
 
+        List<Map<String, String>> results = byUser.values().stream().limit(8).toList();
         return ResponseEntity.ok(results);
     }
 
@@ -323,6 +333,54 @@ public class UserController {
         }
         repo.save(user);
         return ResponseEntity.ok("Reminder settings saved");
+    }
+
+    // Izmena display imena (Full name); username ostaje nepromenjen
+    @PutMapping("/fullname")
+    public ResponseEntity<?> setFullName(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam String username,
+            @RequestParam(required = false) String fullName) {
+
+        if (validation.invalidUsername(username)) {
+            return ResponseEntity.badRequest().body("Invalid username format");
+        }
+        if (!sessionAuthService.isSameUser(authorization, username)) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+        Optional<User> opt = repo.findByUsername(username);
+        if (opt.isEmpty()) {
+            return ResponseEntity.badRequest().body("User not found");
+        }
+        String fn = fullName == null ? null : fullName.trim();
+        if (fn != null && fn.length() > 60) fn = fn.substring(0, 60);
+
+        User user = opt.get();
+        user.setFullName(fn == null || fn.isEmpty() ? null : fn);
+        repo.save(user);
+        return ResponseEntity.ok("Full name saved");
+    }
+
+    // Batch dohvat display imena po username-ima (za chat/liste)
+    @PostMapping("/names")
+    public ResponseEntity<?> getNames(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody List<String> usernames) {
+
+        if (sessionAuthService.getUsername(authorization).isEmpty()) {
+            return ResponseEntity.status(403).body("Access denied.");
+        }
+        Map<String, String> result = new HashMap<>();
+        if (usernames == null || usernames.isEmpty()) {
+            return ResponseEntity.ok(result);
+        }
+        List<String> capped = usernames.size() > 200 ? usernames.subList(0, 200) : usernames;
+        for (User u : repo.findByUsernameIn(capped)) {
+            if (u.getFullName() != null && !u.getFullName().isBlank()) {
+                result.put(u.getUsername(), u.getFullName());
+            }
+        }
+        return ResponseEntity.ok(result);
     }
 
     // Telo zahteva za korisnički (CLIENT) podsetnik

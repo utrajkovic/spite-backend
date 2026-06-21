@@ -16,6 +16,7 @@ public class User {
     private String id;
     @Indexed(unique = true)
     private String username;
+    private String fullName; // ime za prikaz (npr. "Uros Trajkovic"); username ostaje login/ID
     // Prima se iz request body-ja (login/register) ali se NIKAD ne serijalizuje u odgovor
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
@@ -56,6 +57,14 @@ public class User {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
     }
 
     public String getPassword() {
